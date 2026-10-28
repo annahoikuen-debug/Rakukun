@@ -1,0 +1,48 @@
+version: "3.9"
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: rakukun
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  gophish:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    environment:
+      ADMIN_LISTEN_URL: 0.0.0.0:3333
+      ADMIN_USE_TLS: "false"
+      PHISH_LISTEN_URL: 0.0.0.0:80
+      PHISH_USE_TLS: "false"
+      DB_NAME: sqlite3
+    ports:
+      - "3333:3333"
+      - "80:80"
+    depends_on:
+      - postgres
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    environment:
+      DATABASE_URL: postgresql://postgres:password@postgres:5432/rakukun?schema=public
+      AUTH_SECRET: change-me
+      NEXTAUTH_URL: http://localhost:3000
+      GOPHISH_ADMIN_URL: http://gophish:3333
+      GOPHISH_ADMIN_API_KEY: ""
+      GOPHISH_KEY_ENCRYPTION_SECRET: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres
+      - gophish
+
+volumes:
+  pgdata:

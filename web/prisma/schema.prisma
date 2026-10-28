@@ -1,0 +1,150 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrgRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  name         String?
+  passwordHash String
+  memberships  Membership[]
+  accounts     Account[]
+  sessions     Session[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+model Tenant {
+  id               String             @id @default(cuid())
+  name             String
+  slug             String             @unique
+  domain           String?            @unique
+  plan             String             @default("FREE")
+  stripeCustomerId String?
+  gophishUserId    Int?
+  gophishApiKey    String?
+  memberships      Membership[]
+  campaignLinks    CampaignLink[]
+  employees        TargetEmployee[]
+  campaigns        TrainingCampaign[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+}
+
+model Membership {
+  id        String   @id @default(cuid())
+  userId    String
+  tenantId  String
+  role      OrgRole  @default(MEMBER)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, tenantId])
+}
+
+model CampaignLink {
+  id                String   @id @default(cuid())
+  tenantId          String
+  gophishCampaignId Int
+  name              String
+  status            String
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([tenantId, gophishCampaignId])
+}
+
+model TargetEmployee {
+  id        String           @id @default(cuid())
+  tenantId  String
+  tenant    Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  department String
+  name      String
+  email     String
+  createdAt DateTime         @default(now())
+  results   TrainingResult[]
+
+  @@unique([tenantId, email])
+}
+
+model TrainingCampaign {
+  id                String           @id @default(cuid())
+  tenantId          String
+  tenant            Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  title             String
+  templateKey       String
+  gophishCampaignId Int?             @unique
+  gophishGroupId    Int?
+  status            String           @default("SCHEDULED")
+  startDate         DateTime?
+  sendByDate        DateTime?
+  reviewComment     String?
+  results           TrainingResult[]
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+}
+
+model TrainingResult {
+  id                 String           @id @default(cuid())
+  trainingCampaignId String
+  trainingCampaign   TrainingCampaign @relation(fields: [trainingCampaignId], references: [id], onDelete: Cascade)
+  targetEmployeeId   String
+  targetEmployee     TargetEmployee   @relation(fields: [targetEmployeeId], references: [id], onDelete: Cascade)
+  gophishResultId    String?          @unique
+  emailSentAt        DateTime?
+  isHumanClicked     Boolean          @default(false)
+  clickedAt          DateTime?
+  isQuizCompleted    Boolean          @default(false)
+  quizCompletedAt    DateTime?
+  userAgent          String?
+  createdAt          DateTime         @default(now())
+
+  @@unique([trainingCampaignId, targetEmployeeId])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
