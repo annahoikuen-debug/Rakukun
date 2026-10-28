@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { requireOrg } from "@/lib/org";
 import { orgClient } from "@/lib/gophish";
+import NotProvisioned from "@/components/NotProvisioned";
 import { prisma } from "@/lib/prisma";
 import { syncTrainingResults } from "@/lib/rid-sync";
 import { aggregateReport } from "@/lib/report-aggregator";
@@ -17,7 +18,8 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
   if (!session?.userId) redirect("/signin");
   const userId = session.userId as string;
   const { org } = await requireOrg(userId);
-  const client = await orgClient(org.id);
+  let client;
+  try { client = await orgClient(org.id); } catch { return <NotProvisioned />; }
 
   const tc = await prisma.trainingCampaign.findFirst({
     where: { gophishCampaignId: numId, tenantId: org.id },

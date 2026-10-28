@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { requireOrg } from "@/lib/org";
 import { orgClient } from "@/lib/gophish";
+import NotProvisioned from "@/components/NotProvisioned";
 import Link from "next/link";
 import { deleteCampaignAction } from "@/app/actions";
 
@@ -8,7 +9,8 @@ export default async function CampaignsPage() {
   const session = await auth();
   const userId = session!.userId as string;
   const { org } = await requireOrg(userId);
-  const client = await orgClient(org.id);
+  let client;
+  try { client = await orgClient(org.id); } catch { return <NotProvisioned />; }
   let campaigns: any[] = [];
   try { campaigns = await client.getCampaigns(); } catch { campaigns = []; }
 

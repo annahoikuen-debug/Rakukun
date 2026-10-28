@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { requireOrg } from "@/lib/org";
 import { orgClient } from "@/lib/gophish";
+import NotProvisioned from "@/components/NotProvisioned";
 import { createCampaignAction } from "@/app/actions";
 import Link from "next/link";
 
@@ -8,7 +9,8 @@ export default async function NewCampaignPage() {
   const session = await auth();
   const userId = session!.userId as string;
   const { org } = await requireOrg(userId);
-  const client = await orgClient(org.id);
+  let client;
+  try { client = await orgClient(org.id); } catch { return <NotProvisioned />; }
   const [templates, pages, smtps] = await Promise.all([
     client.getTemplates().catch(() => []),
     client.getPages().catch(() => []),

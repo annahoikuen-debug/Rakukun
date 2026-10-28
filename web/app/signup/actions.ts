@@ -6,7 +6,7 @@ import { provisionOrgGophishUser } from "@/lib/org";
 import { assertEmailMatchesTenant, emailDomain } from "@/lib/domain-guard";
 import { redirect } from "next/navigation";
 
-export async function signupAction(formData: FormData) {
+export async function signupAction(_prevState: unknown, formData: FormData) {
   const parsed = signupSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),

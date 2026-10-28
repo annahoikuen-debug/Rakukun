@@ -4,10 +4,11 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 import { prisma } from "./lib/prisma";
 import { rateLimit, clearAttempts } from "./lib/rate-limit";
+import { authConfig } from "./auth.config";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  ...authConfig,
   adapter: PrismaAdapter(prisma),
-  session: { strategy: "jwt" },
   providers: [
     Credentials({
       name: "credentials",
@@ -29,17 +30,4 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       },
     }),
   ],
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user) token.userId = user.id;
-      return token;
-    },
-    async session({ session, token }) {
-      if (token?.userId) (session as any).userId = token.userId;
-      return session;
-    },
-  },
-  pages: {
-    signIn: "/signin",
-  },
 });

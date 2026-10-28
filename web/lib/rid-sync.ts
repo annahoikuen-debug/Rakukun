@@ -27,7 +27,7 @@ export async function syncTrainingResults(tenantId: string, trainingCampaignId: 
         data: { gophishResultId: r.id, emailSentAt: r.send_date ? new Date(r.send_date) : undefined },
       });
       mapped += 1;
-    } catch (e) {
+    } catch {
       // unique conflict (already mapped to another row) — skip
     }
   }

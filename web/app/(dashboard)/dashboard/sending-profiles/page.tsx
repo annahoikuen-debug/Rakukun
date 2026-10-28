@@ -1,13 +1,15 @@
 import { auth } from "@/auth";
 import { requireOrg } from "@/lib/org";
 import { orgClient } from "@/lib/gophish";
+import NotProvisioned from "@/components/NotProvisioned";
 import { createSmtpAction, deleteSmtpAction } from "@/app/actions";
 
 export default async function SendingProfilesPage() {
   const session = await auth();
   const userId = session!.userId as string;
   const { org } = await requireOrg(userId);
-  const client = await orgClient(org.id);
+  let client;
+  try { client = await orgClient(org.id); } catch { return <NotProvisioned />; }
   const profiles = await client.getSendingProfiles().catch(() => []);
 
   return (
