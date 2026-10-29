@@ -102,8 +102,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "保存に失敗しました" }, { status: 500 });
   }
 
+  const groupName = `tenant-${org.id}-employees`;
   const group = await client.createGroup({
-    name: `tenant-${org.id}-employees`,
+    name: groupName,
     targets: employees.map((e) => ({
       email: e.email,
       first_name: e.name,
@@ -112,5 +113,5 @@ export async function POST(req: Request) {
     })),
   });
 
-  return NextResponse.json({ groupId: (group as any)?.id, count: employees.length });
+  return NextResponse.json({ groupId: (group as any)?.id, groupName, count: employees.length });
 }

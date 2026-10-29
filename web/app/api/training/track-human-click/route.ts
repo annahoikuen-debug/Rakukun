@@ -1,10 +1,17 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { rateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const rid = String(body?.rid ?? "");
   if (!rid) return NextResponse.json({ error: "missing rid" }, { status: 400 });
+
+  // Rate-limit by IP to slow down enumeration/forgery of result IDs.
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  if (!rateLimit(`training:click:${ip}`, 30, 60_000)) {
+    return NextResponse.json({ error: "rate limited" }, { status: 429 });
+  }
 
   const result = await prisma.trainingResult.findFirst({ where: { gophishResultId: rid } });
   if (!result) return NextResponse.json({ ok: false, reason: "not found" }, { status: 404 });

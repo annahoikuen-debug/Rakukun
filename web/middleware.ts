@@ -19,6 +19,9 @@ export default auth((req) => {
   const isLoggedIn = !!req.auth;
 
   if (!isLoggedIn && !isPublic && !isAuthRoute) {
+    if (pathname.startsWith("/api")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const url = req.nextUrl.clone();
     url.pathname = "/signin";
     return NextResponse.redirect(url);

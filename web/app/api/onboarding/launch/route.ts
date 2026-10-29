@@ -22,7 +22,11 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json();
-  const { name, scenarioKey, pageName, smtpName, groupName, url, sendByDate } = body ?? {};
+  const { name, scenarioKey, pageName, smtpName, groupName, url, mode, sendByDate } = body ?? {};
+  const staggered = mode === "staggered";
+  if (staggered && !sendByDate) {
+    return NextResponse.json({ error: "分散配信には終了日時（sendByDate）が必要です" }, { status: 400 });
+  }
   const scenario = getScenario(scenarioKey ?? "default");
   const templateName = `scenario-${scenario.key}`;
 

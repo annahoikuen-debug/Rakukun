@@ -24,7 +24,7 @@ export default function OnboardingWizard() {
     if (res.ok) {
       setGroupId(data.groupId);
       setEmployeeCount(data.count);
-      setGroupName(`tenant-employees`);
+      setGroupName(data.groupName ?? "");
       setStep(2);
     } else {
       const detail = Array.isArray(data.details) ? data.details.join(" / ") : "";

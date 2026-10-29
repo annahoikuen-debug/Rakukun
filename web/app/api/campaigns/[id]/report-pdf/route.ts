@@ -22,11 +22,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   }
   if (!orgId) return NextResponse.json({ error: "No tenant" }, { status: 400 });
 
-  // Verify membership (throws when not a member)
+  // Verify membership (throws OrgAccessError -> map to proper status)
   try {
     await requireOrg(userId, orgId);
-  } catch {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 403 });
   }
 
   const data = await aggregateReport(campaignId, orgId);

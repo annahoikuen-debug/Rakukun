@@ -5,6 +5,7 @@ import { signupSchema } from "@/lib/validators";
 import { provisionOrgGophishUser } from "@/lib/org";
 import { assertEmailMatchesTenant, emailDomain } from "@/lib/domain-guard";
 import { redirect } from "next/navigation";
+import { rateLimit } from "@/lib/rate-limit";
 
 export async function signupAction(_prevState: unknown, formData: FormData) {
   const parsed = signupSchema.safeParse({
@@ -15,6 +16,11 @@ export async function signupAction(_prevState: unknown, formData: FormData) {
   });
   if (!parsed.success) return { error: "Invalid input" };
   const { email, password, name, orgName } = parsed.data;
+
+  // Rate-limit signup attempts by email to prevent Gophish-user resource exhaustion.
+  if (!rateLimit(`signup:${email}`, 3, 60_000)) {
+    return { error: "サインアップ試行回数を超えました。しばらくしてから再試行してください。" };
+  }
 
   const domainErr = assertEmailMatchesTenant(email, null);
   if (domainErr) return { error: domainErr };
