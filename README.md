@@ -1,66 +1,67 @@
-![gophish logo](https://raw.github.com/gophish/gophish/master/static/images/gophish_purple.png)
+# Rakukun SecTraining — v0.1
 
-Gophish
-=======
+中小企業向けの標的型攻撃メール訓練 SaaS。Gophish をヘッドレス配信・計測エンジンとして内部起動し、Next.js 側でマルチテナント管理・マイクロ教育・監査レポート PDF を提供します。
 
-![Build Status](https://github.com/gophish/gophish/workflows/CI/badge.svg) [![GoDoc](https://godoc.org/github.com/gophish/gophish?status.svg)](https://godoc.org/github.com/gophish/gophish)
+## コンセプト
 
-Gophish: Open-Source Phishing Toolkit
+年1回30万円の標的型メール訓練を、**年額6万円・設定10分・全自動**で完了させ、Pマーク / ISMS 審査にそのまま提出できる監査レポート PDF をワンクリック出力します。
 
-[Gophish](https://getgophish.com) is an open-source phishing toolkit designed for businesses and penetration testers. It provides the ability to quickly and easily setup and execute phishing engagements and security awareness training.
+## 画面構成（ドキュメントとのつながり）
 
-### Install
+| 画面 | パス | 内容 |
+|------|------|------|
+| ランディングページ | `/` | サービス紹介・特徴・料金。ナビから Q&A / マニュアル / サインアップへ誘導 |
+| Q&A | `/faq` | よくある質問。各回答から該当するマニュアル章へリンク |
+| 操作マニュアル | `/manual` | サインアップ→登録→配信→レポート出力→個人情報削除の手順。目次・アンカー付き、各所から Q&A へ誘導 |
+| 管理画面 | `/dashboard` | テナント統計・部署別ランキング・キャンペーン一覧 |
+| パートナー管理 | `/dashboard/partners` | パートナーテナント向け：子テナント一覧・社員数・キャンペーン数・切替 |
+| 訓練ランディング | `/training/[rid]` | 社員が閲覧するネタバラシ＆教育ページ（Bot除外計測） |
+| メールイベント | `/api/ses/webhook` | Amazon SES SNS Webhook（バウンス・苦情記録・抑制リスト） |
 
-Installation of Gophish is dead-simple - just download and extract the zip containing the [release for your system](https://github.com/gophish/gophish/releases/), and run the binary. Gophish has binary releases for Windows, Mac, and Linux platforms.
+LP・Q&A・マニュアルは相互リンクしており、マーケティングからオンボーディング、問い合わせまで一続きに設計しています。
 
-### Building From Source
-**If you are building from source, please note that Gophish requires Go v1.10 or above!**
+## アーキテクチャ
 
-To build Gophish from source, simply run ```git clone https://github.com/gophish/gophish.git``` and ```cd``` into the project source directory. Then, run ```go build```. After this, you should have a binary called ```gophish``` in the current directory.
+- **フロントエンド / BFF:** Next.js（App Router / TypeScript / Tailwind CSS）
+- **データベース:** PostgreSQL（Supabase 互換）+ Prisma — マルチテナント、Bot除外後のクリック履歴、クイズ受講履歴
+- **配信・計測エンジン:** `gophish`（Docker）— プライベートネットワーク内、管理ポート 3333 は内部のみ（3333/5432 はホスト非公開）
+- **PDF生成:** `@react-pdf/renderer`（Noto Sans JP 埋め込み、A4縦。FREEプランは SAMPLE 透かし入り）
+- **メール送信基盤:** Amazon SES（SMTP 設定＋SNS Webhookでバウンス/苦情記録・抑制リスト管理）
+- **認証:** NextAuth v5（Credentials + Prisma Adapter）
+- **決済:** Stripe は未実装（`/api/billing/checkout` は 501 スタブ。v0.2 以降で実装予定）
 
-### Docker
-You can also use Gophish via the official Docker container [here](https://hub.docker.com/r/gophish/gophish/).
+マルチテナント分離は「組織ごとに専用の Gophish ユーザー（APIキー）」を発行し、Gophish の per-user フィルタリングで実現しています。パートナー（代理店）プランでは親テナントから子テナントを切替管理できます。
 
-### Setup
-After running the Gophish binary, open an Internet browser to https://localhost:3333 and login with the default username and password listed in the log output.
-e.g.
+## セットアップ
+
+```bash
+cd web
+cp .env.example .env        # DATABASE_URL / AUTH_SECRET / GOPHISH_* / AWS SES 設定
+npm install
+npx prisma migrate dev   # または prisma generate
+npm run dev
 ```
-time="2020-07-29T01:24:08Z" level=info msg="Please login with the username admin and the password 4304d5255378177d"
+
+Docker で一括起動する場合はリポジトリ直下の `docker-compose.yml` を利用します（Postgres + Gophish + Web。gophish:3333 は internal ネットワークのみ）。
+
+## 開発コマンド
+
+```bash
+npm run dev      # 開発サーバ
+npm run build    # 本番ビルド
+npm run test     # ユニットテスト
+npm run lint     # ESLint
 ```
 
-Releases of Gophish prior to v0.10.1 have a default username of `admin` and password of `gophish`.
+## セキュリティ上の原則（絶対遵守）
 
-### Documentation
+- 訓練用ランディングページにクレデンシャル入力フォームは設置せず、`capture_credentials` / `capture_passwords` を常に `false` に固定。
+- 登録・送信先は認証済み自社ドメインに限定（フリーメール禁止）。
+- Gophish 管理ポートは Docker 内部ネットワークに閉じ込め、外部からは Next.js 経由のみ。
+- バウンス・苦情メールは SES Webhook で自動抑制リストへ登録。
 
-Documentation can be found on our [site](http://getgophish.com/documentation). Find something missing? Let us know by filing an issue!
+## さらなる情報
 
-### Issues
-
-Find a bug? Want more features? Find something missing in the documentation? Let us know! Please don't hesitate to [file an issue](https://github.com/gophish/gophish/issues/new) and we'll get right on it.
-
-### License
-```
-Gophish - Open-Source Phishing Framework
-
-The MIT License (MIT)
-
-Copyright (c) 2013 - 2020 Jordan Wright
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software ("Gophish Community Edition") and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-```
+- 料金・特徴: [ランディングページ](http://localhost:3000/) の「料金プラン」
+- よくある質問: [Q&A](http://localhost:3000/faq)
+- 操作手順: [操作マニュアル](http://localhost:3000/manual)

@@ -1,3 +1,4 @@
+"use client";
 import Link from "next/link";
 import PublicNav from "@/components/PublicNav";
 
@@ -36,7 +37,8 @@ const faqs = [
     a: (
       <>
         出せます。A4縦の「標的型攻撃メール訓練 実施報告書」をワンクリックでPDF出力できます。対象者数・部署別クリック率・受講結果一覧・
-        総評コメントを含みます。手順は<Link href="/manual#report" className="text-indigo-600 underline">マニュアル「レポート出力」</Link>を参照してください。
+        総評コメントを含みます。FREEプランは「SAMPLE」透かし入り、スタンダード以上は透かしなしです。
+        手順は<Link href="/manual#report" className="text-indigo-600 underline">マニュアル「レポート出力」</Link>を参照してください。
       </>
     ),
   },
@@ -46,6 +48,7 @@ const faqs = [
       <>
         年間契約（一括前払い）のみで月額課金はありません。フリー（5名まで・無料）、スタンダード（年額60,000円・100名まで）、
         ビジネス（年額120,000円・300名まで）の3プランです。<Link href="/#pricing" className="text-indigo-600 underline">料金プラン</Link>もご確認ください。
+        パートナー（代理店）プランをご希望の場合は別途お問い合わせください。
       </>
     ),
   },
@@ -71,8 +74,37 @@ const faqs = [
     q: "訓練後に社員のメールアドレスを削除できますか？",
     a: (
       <>
-        はい。訓練終了・レポート出力後に、氏名・メールアドレスをワンクリックで匿名化できます。手順は
-        <Link href="/manual#anonymize" className="text-indigo-600 underline">マニュアル「個人情報の削除」</Link>にあります。
+        はい。訓練終了・レポート出力後に、氏名・メールアドレスをワンクリックで匿名化できます。Gophish側のグループターゲットも空にするため、
+        実メールが残りません。手順は<Link href="/manual#anonymize" className="text-indigo-600 underline">マニュアル「個人情報の削除」</Link>にあります。
+      </>
+    ),
+  },
+  {
+    q: "ダッシュボードで何が見られますか？",
+    a: (
+      <>
+        全体の対象者数・人間によるクリック数・クリック率・教育完了率をサマリー表示し、部署別のクリック率ランキングも確認できます。
+        最近のキャンペーン一覧も表示され、進捗をリアルタイムで把握できます。詳細は
+        <Link href="/manual#dashboard" className="text-indigo-600 underline">マニュアル「集計の見方」</Link>をご覧ください。
+      </>
+    ),
+  },
+  {
+    q: "バウンスメールや苦情メールはどう処理されますか？",
+    a: (
+      <>
+        Amazon SES の SNS Webhook でバウンス・苦情イベントを自動収集し、ハードバウンスや苦情の宛先は抑制リストに登録して二度送信しないようにします。
+        配信信頼性を守る仕組みです。<Link href="/manual#ses" className="text-indigo-600 underline">マニュアル「SES配信イベント」</Link>を参照してください。
+      </>
+    ),
+  },
+  {
+    q: "パートナー（代理店）として複数社を管理できますか？",
+    a: (
+      <>
+        はい。パートナープランでは親テナントから子テナント（クライアント企業）を一覧・切替管理できます。
+        管理画面の「パートナー管理」から子テナントの社員数・キャンペーン数を確認し、各社に切り替えて運用できます。
+        <Link href="/manual#partners" className="text-indigo-600 underline">マニュアル「パートナー管理」</Link>をご覧ください。
       </>
     ),
   },

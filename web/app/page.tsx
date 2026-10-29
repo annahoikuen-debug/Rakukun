@@ -12,15 +12,15 @@ const features = [
   },
   {
     title: "監査提出用レポートPDF",
-    body: "Pマーク・ISMS審査にそのまま提出できるA4の「標的型攻撃メール訓練 実施報告書」をワンクリック出力。総評コメントは自動生成後に編集可能。",
+    body: "Pマーク・ISMS審査にそのまま提出できるA4の「標的型攻撃メール訓練 実施報告書」をワンクリック出力。総評コメントは自動生成後に編集可能。FREEプランはSAMPLE透かし入り。",
   },
   {
     title: "ネタバレ防止の分散配信",
     body: "指定した期間の中で社員ごとに送信日時を分散。社内チャットでの「訓練メール来たよ」を防ぎ、真のクリック率を測定します。",
   },
   {
-    title: "設定10分・全自動",
-    body: "CSVアップロード→ホワイトリスト設定→テンプレート選択の3ステップ。配信・集計・レポート作成まで自動で行います。",
+    title: "ダッシュボード統計",
+    body: "対象者数・クリック率・教育完了率をサマリー表示。部署別クリック率ランキングと最近のキャンペーン一覧で進捗をリアルタイム把握できます。",
   },
   {
     title: "個人情報を預けない",
@@ -35,9 +35,10 @@ const steps = [
 ];
 
 const plans = [
-  { name: "フリー", price: "0円", note: "体験用", limit: "対象5名まで", items: ["テスト配信", "サンプルレポートPDF出力", "1テンプレート"] },
+  { name: "フリー", price: "0円", note: "体験用", limit: "対象5名まで", items: ["テスト配信", "サンプルレポートPDF出力（SAMPLE透かし）", "1テンプレート"] },
   { name: "スタンダード", price: "¥60,000/年", note: "人気", limit: "対象100名まで", items: ["通年分散配信", "日本語テンプレ全種", "監査レポートPDF出力", "部署別集計"], featured: true },
   { name: "ビジネス", price: "¥120,000/年", note: "複数拠点", limit: "対象300名まで", items: ["スタンダードの全機能", "複数拠点・部署比較レポート"] },
+  { name: "パートナー（代理店）", price: "別途お見積もり", note: "代理店向け", limit: "複数テナント管理", items: ["子テナント一覧・切替", "社員数・キャンペーン数把握", "マルチテナント運用"] },
 ];
 
 export default async function LandingPage() {
@@ -113,6 +114,9 @@ export default async function LandingPage() {
             </div>
           ))}
         </div>
+        <p className="text-center text-sm text-gray-500 mt-6">
+          パートナープラン（代理店）については、<Link href="/manual#partners" className="text-indigo-600 underline">マニュアル</Link>またはお問い合わせください。
+        </p>
       </section>
 
       {/* FAQ / Manual links */}

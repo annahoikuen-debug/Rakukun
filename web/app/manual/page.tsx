@@ -10,7 +10,9 @@ const toc = [
   { id: "dashboard", label: "6. 集計の見方" },
   { id: "report", label: "7. レポート出力" },
   { id: "anonymize", label: "8. 個人情報の削除" },
-  { id: "trouble", label: "9. トラブルシューティング" },
+  { id: "partners", label: "9. パートナー管理" },
+  { id: "ses", label: "10. SES配信イベント" },
+  { id: "trouble", label: "11. トラブルシューティング" },
 ];
 
 function H({ id, children }: { id: string; children: React.ReactNode }) {
@@ -89,27 +91,45 @@ export default function ManualPage() {
           <li>メールを開封し、リンクを踏んだ「実クリック」だけを計測します（Bot誤検知を除外）。</li>
           <li>クリックした社員には教育コンテンツと3択クイズが表示され、全問正解で「事後教育完了」と記録されます。</li>
           <li>キャンペーン詳細ページで、サマリー・部署別・受講結果一覧を確認できます。</li>
+          <li>ダッシュボードでは、全体の対象者数・クリック率・教育完了率と、部署別のクリック率ランキング、最近のキャンペーン一覧を確認できます。</li>
         </ul>
-        <p className="text-sm text-gray-600 mt-2">仕組みの詳細: <Link href="/faq" className="text-indigo-600 underline">Safe Linksで誤計測されない？</Link></p>
+        <p className="text-sm text-gray-600 mt-2">仕組みの詳細: <Link href="/faq" className="text-indigo-600 underline">Safe Linksで誤計測されない？</Link> / ダッシュボード: <Link href="/faq" className="text-indigo-600 underline">ダッシュボードで何が見られますか？</Link></p>
 
         <H id="report">レポート出力</H>
         <ol className="list-decimal ml-5 text-sm space-y-2">
           <li>キャンペーン詳細ページの「Download PDF report」をクリックします。</li>
           <li>「総評・改善計画コメント」欄に、クリック率に応じた定型コメントが自動挿入されます。そのまま編集・保存できます。</li>
-          <li>出力されるA4 PDFは、対象者数・部署別クリック率・受講結果一覧・総評を含み、Pマーク/ISMS審査に提出できます。</li>
+          <li>出力されるA4 PDFは、対象者数・部署別クリック率・受講結果一覧・総評を含み、Pマーク/ISMS審査に提出できます。FREEプランは「SAMPLE」透かし入りです。</li>
         </ol>
         <p className="text-sm text-gray-600 mt-2">審査対応: <Link href="/faq" className="text-indigo-600 underline">審査に提出できる？</Link></p>
 
         <H id="anonymize">個人情報の削除</H>
         <ol className="list-decimal ml-5 text-sm space-y-2">
           <li>レポート出力後、キャンペーン詳細ページの「個人情報を匿名化（削除）」ボタンを押します。</li>
-          <li>社員の氏名・メールアドレスが匿名化され、個人情報の保持を終了できます。</li>
+          <li>社員の氏名・メールアドレスが匿名化され、Gophish側のグループターゲットも空にされるため、実メールが残りません。</li>
         </ol>
+
+        <H id="partners">パートナー管理</H>
+        <ol className="list-decimal ml-5 text-sm space-y-2">
+          <li>パートナープランの親テナントとしてログインし、管理画面の「パートナー管理」を開きます。</li>
+          <li>子テナント（クライアント企業）の一覧が表示され、社員数・キャンペーン数を確認できます。</li>
+          <li>「テナント切替」リンクから、該当子テナントに切り替えて運用できます。</li>
+        </ol>
+        <p className="text-sm text-gray-600 mt-2">関連: <Link href="/faq" className="text-indigo-600 underline">パートナーとして複数社を管理できますか？</Link></p>
+
+        <H id="ses">SES配信イベント</H>
+        <p className="text-sm mb-2">Amazon SES の SNS Webhook でバウンス・苦情・配信イベントを自動収集します。</p>
+        <ul className="list-disc ml-5 text-sm space-y-1">
+          <li>ハードバウンス・苦情の宛先は抑制リストに登録され、二度送信されません。</li>
+          <li>イベントは `SesEvent` テーブルに記録され、配信信頼性の監視に利用できます。</li>
+        </ul>
+        <p className="text-sm text-gray-600 mt-2">関連: <Link href="/faq" className="text-indigo-600 underline">バウンスメールや苦情メールはどう処理されますか？</Link></p>
 
         <H id="trouble">トラブルシューティング</H>
         <ul className="list-disc ml-5 text-sm space-y-1">
           <li>メールが届かない → <Link href="/manual#whitelist" className="text-indigo-600 underline">ホワイトリスト設定</Link>を確認。</li>
           <li>クリックが増えない → <Link href="/manual#dashboard" className="text-indigo-600 underline">集計の見方</Link>（Bot除外の挙動）を確認。</li>
+          <li>バウンスが多い → <Link href="/manual#ses" className="text-indigo-600 underline">SES配信イベント</Link>と抑制リストを確認。</li>
           <li>その他の疑問 → <Link href="/faq" className="text-indigo-600 underline">Q&amp;A</Link>をご覧ください。</li>
         </ul>
 
