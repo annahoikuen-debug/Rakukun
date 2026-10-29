@@ -75,43 +75,91 @@ export async function POST(req: Request) {
 
   if (errors.length) return NextResponse.json({ error: "登録エラー", details: errors.slice(0, 20) }, { status: 400 });
 
-  // Plan limit: count only NEW emails (existing ones will be updated, not added).
-  const existingRows = await prisma.targetEmployee.findMany({
-    where: { tenantId: org.id, email: { in: employees.map((e) => e.email) } },
-    select: { email: true },
-  });
-  const existingSet = new Set(existingRows.map((r) => r.email.toLowerCase()));
-  const newCount = employees.filter((e) => !existingSet.has(e.email.toLowerCase())).length;
-  const totalForTenant = await prisma.targetEmployee.count({ where: { tenantId: org.id } });
-  if (totalForTenant + newCount > planLimit(org.plan)) {
-    return NextResponse.json({ error: `プラン上限（${planLimit(org.plan)}名）を超えています` }, { status: 400 });
-  }
+  const groupName = `tenant-${org.id}-employees`;
+  const limit = planLimit(org.plan);
 
+  let result: { created: number; updated: number };
   try {
-    await prisma.$transaction(
-      employees.map((e) =>
-        prisma.targetEmployee.upsert({
-          where: { tenantId_email: { tenantId: org.id, email: e.email } },
+    result = await prisma.$transaction(async (tx) => {
+      // Re-check plan limit inside the transaction to close the TOCTOU gap.
+      const existingRows = await tx.targetEmployee.findMany({
+        where: { tenantId: org.id, email: { in: employees.map((e) => e.email.toLowerCase()) } },
+        select: { email: true },
+      });
+      const existingSet = new Set(existingRows.map((r) => r.email.toLowerCase()));
+      const newCount = employees.filter((e) => !existingSet.has(e.email.toLowerCase())).length;
+      const totalForTenant = await tx.targetEmployee.count({ where: { tenantId: org.id } });
+      if (totalForTenant + newCount > limit) {
+        throw new Error(`LIMIT:${limit}`);
+      }
+      let created = 0;
+      let updated = 0;
+      for (const e of employees) {
+        const emailLower = e.email.toLowerCase();
+        const found = await tx.targetEmployee.findUnique({
+          where: { tenantId_email: { tenantId: org.id, email: emailLower } },
+        });
+        await tx.targetEmployee.upsert({
+          where: { tenantId_email: { tenantId: org.id, email: emailLower } },
           update: { department: e.department, name: e.name },
-          create: { tenantId: org.id, department: e.department, name: e.name, email: e.email },
-        }),
-      ),
-    );
-  } catch (e) {
+          create: { tenantId: org.id, department: e.department, name: e.name, email: emailLower },
+        });
+        if (found) updated++;
+        else created++;
+      }
+      return { created, updated };
+    });
+  } catch (e: any) {
+    const msg = String(e?.message ?? "");
+    if (msg.startsWith("LIMIT:")) {
+      return NextResponse.json({ error: `プラン上限（${msg.slice(6)}名）を超えています` }, { status: 400 });
+    }
     console.error("employee upsert failed", e);
     return NextResponse.json({ error: "保存に失敗しました" }, { status: 500 });
   }
 
-  const groupName = `tenant-${org.id}-employees`;
-  const group = await client.createGroup({
-    name: groupName,
-    targets: employees.map((e) => ({
-      email: e.email,
-      first_name: e.name,
-      last_name: "",
-      position: e.department,
-    })),
-  });
+  // Reuse existing group if present (Gophish returns 409 on duplicate name).
+  let group: any;
+  try {
+    group = await client.createGroup({
+      name: groupName,
+      targets: employees.map((e) => ({
+        email: e.email.toLowerCase(),
+        first_name: e.name,
+        last_name: "",
+        position: e.department,
+      })),
+    });
+  } catch (e: any) {
+    // Duplicate name — fetch the existing group and update its targets instead.
+    try {
+      const groups = await client.getGroups();
+      const existing = (groups as any[]).find((g) => g.name === groupName);
+      if (existing) {
+        group = await client.updateGroup(existing.id, {
+          name: groupName,
+          targets: employees.map((e) => ({
+            email: e.email.toLowerCase(),
+            first_name: e.name,
+            last_name: "",
+            position: e.department,
+          })),
+        });
+      } else {
+        console.error("createGroup failed (not a duplicate):", e);
+        return NextResponse.json(
+          { error: "Gophish グループ作成に失敗しました（社員は保存済み）", count: employees.length },
+          { status: 502 },
+        );
+      }
+    } catch (e2) {
+      console.error("updateGroup failed:", e2);
+      return NextResponse.json(
+        { error: "Gophish グループ更新に失敗しました（社員は保存済み）", count: employees.length },
+        { status: 502 },
+      );
+    }
+  }
 
-  return NextResponse.json({ groupId: (group as any)?.id, groupName, count: employees.length });
+  return NextResponse.json({ groupId: group?.id, groupName, count: employees.length, ...result });
 }

@@ -4,6 +4,14 @@ import { orgClient } from "@/lib/gophish";
 import { assertEmailMatchesTenant } from "@/lib/domain-guard";
 import { toOrgErrorStatus } from "@/lib/errors";
 import { NextResponse } from "next/server";
+import { z } from "zod";
+
+const bodySchema = z.object({
+  smtpName: z.string().min(1),
+  templateName: z.string().optional(),
+  recipientEmail: z.string().email(),
+  url: z.string().url().optional(),
+});
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -22,9 +30,17 @@ export async function POST(req: Request) {
   }
   if (membership.role === "MEMBER") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const body = await req.json();
-  const { smtpName, templateName, recipientEmail, url } = body ?? {};
+  const parsedBody = bodySchema.safeParse(await req.json().catch(() => ({})));
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid input", details: parsedBody.error.issues }, { status: 400 });
+  }
+  const { smtpName, templateName, recipientEmail, url } = parsedBody.data;
 
+  // Reject when tenant domain is unset — otherwise the freemail guard alone allows
+  // sending to arbitrary external addresses.
+  if (!org.domain) {
+    return NextResponse.json({ error: "組織ドメインが未設定です" }, { status: 400 });
+  }
   const domainErr = assertEmailMatchesTenant(recipientEmail, org.domain);
   if (domainErr) return NextResponse.json({ error: domainErr }, { status: 400 });
 

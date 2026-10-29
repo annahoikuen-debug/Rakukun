@@ -4,8 +4,6 @@ import { SCENARIOS } from "@/lib/scenarios";
 
 export default function OnboardingWizard() {
   const [step, setStep] = useState(1);
-  const [groupId, setGroupId] = useState<number | null>(null);
-  const [employeeCount, setEmployeeCount] = useState(0);
   const [smtpName, setSmtpName] = useState("");
   const [recipient, setRecipient] = useState("");
   const [groupName, setGroupName] = useState("");
@@ -22,8 +20,6 @@ export default function OnboardingWizard() {
     const res = await fetch("/api/onboarding/upload-csv", { method: "POST", body: fd });
     const data = await res.json();
     if (res.ok) {
-      setGroupId(data.groupId);
-      setEmployeeCount(data.count);
       setGroupName(data.groupName ?? "");
       setStep(2);
     } else {

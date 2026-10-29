@@ -22,11 +22,11 @@ export async function syncTrainingResults(tenantId: string, trainingCampaignId: 
     const emp = byEmail.get(String(r.email).toLowerCase());
     if (!emp) continue;
     try {
-      await prisma.trainingResult.updateMany({
+      const upd = await prisma.trainingResult.updateMany({
         where: { trainingCampaignId, targetEmployeeId: emp.id },
-        data: { gophishResultId: r.id, emailSentAt: r.send_date ? new Date(r.send_date) : undefined },
+        data: { gophishResultId: String(r.id), emailSentAt: r.send_date ? new Date(r.send_date) : undefined },
       });
-      mapped += 1;
+      mapped += upd.count;
     } catch {
       // unique conflict (already mapped to another row) — skip
     }

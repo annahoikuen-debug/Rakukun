@@ -32,7 +32,7 @@ export async function POST(req: Request) {
 
   // Ensure the Japanese scenario template exists in Gophish
   try {
-    const tpl = await client.createTemplate({
+    await client.createTemplate({
       name: templateName,
       subject: scenario.subject,
       text: "",
@@ -78,7 +78,7 @@ export async function POST(req: Request) {
     data: {
       tenantId: org.id,
       title: name,
-      templateKey: scenarioKey ?? "default",
+      templateKey: scenario.key,
       gophishCampaignId: created.id,
       gophishGroupId: null,
       status: created?.status ?? "SCHEDULED",

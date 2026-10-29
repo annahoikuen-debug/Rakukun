@@ -72,8 +72,10 @@ export async function aggregateReport(campaignId: number, tenantId?: string): Pr
       })
     : [];
 
+  // "sent" only counts results whose email was actually dispatched.
+  const sentResults = (results as any[]).filter((r) => r.emailSentAt != null);
   const deptMap = new Map<string, { sent: number; clicked: number; quiz: number }>();
-  for (const r of results as any[]) {
+  for (const r of sentResults) {
     const dept = r.targetEmployee.department || "未分類";
     const cur = deptMap.get(dept) ?? { sent: 0, clicked: 0, quiz: 0 };
     cur.sent += 1;
@@ -91,9 +93,9 @@ export async function aggregateReport(campaignId: number, tenantId?: string): Pr
     quizCompletionRate: pct(v.quiz, v.sent),
   }));
 
-  const totalSent = results.length;
-  const totalClicked = results.filter((r:any) => r.isHumanClicked).length;
-  const totalQuiz = results.filter((r:any) => r.isQuizCompleted).length;
+  const totalSent = sentResults.length;
+  const totalClicked = sentResults.filter((r:any) => r.isHumanClicked).length;
+  const totalQuiz = sentResults.filter((r:any) => r.isQuizCompleted).length;
 
   const overall = {
     sent: totalSent,

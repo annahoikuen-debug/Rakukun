@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const QUIZ = [
   {
@@ -20,43 +20,32 @@ const QUIZ = [
 ];
 
 export default function TrainingLanding({ rid }: { rid: string }) {
-  const [tracked, setTracked] = useState(false);
+  const trackedRef = useRef(false);
   const [quizIndex, setQuizIndex] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
   const [score, setScore] = useState(0);
   const [done, setDone] = useState(false);
 
-  useEffect(() => {
-    let fired = false;
-    const fire = () => {
-      if (fired || tracked) return;
-      fired = true;
-      setTracked(true);
-      fetch("/api/training/track-human-click", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rid }),
-      }).catch(() => {});
-    };
-    const onScroll = () => fire();
-    const onMouseMove = () => fire();
-    window.addEventListener("scroll", onScroll, { once: true });
-    window.addEventListener("mousemove", onMouseMove, { once: true });
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("mousemove", onMouseMove);
-    };
-  }, [rid, tracked]);
-
-  function onConfirmClick() {
-    if (tracked) return;
-    setTracked(true);
+  // Single synchronous gate so scroll/mousemove/click can never double-fire.
+  function track() {
+    if (trackedRef.current) return;
+    trackedRef.current = true;
     fetch("/api/training/track-human-click", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ rid }),
     }).catch(() => {});
   }
+
+  useEffect(() => {
+    window.addEventListener("scroll", track, { once: true });
+    window.addEventListener("mousemove", track, { once: true });
+    return () => {
+      window.removeEventListener("scroll", track);
+      window.removeEventListener("mousemove", track);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rid]);
 
   function answerChoice(i: number) {
     if (selected !== null) return;
@@ -108,7 +97,7 @@ export default function TrainingLanding({ rid }: { rid: string }) {
           </div>
         </div>
 
-        <button onClick={onConfirmClick} className="bg-black text-white px-4 py-2 rounded">
+        <button onClick={track} className="bg-black text-white px-4 py-2 rounded">
           内容を確認する
         </button>
 

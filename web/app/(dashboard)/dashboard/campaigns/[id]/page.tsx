@@ -14,6 +14,7 @@ import AnonymizeButton from "@/components/AnonymizeButton";
 export default async function CampaignDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const numId = Number(id);
+  if (!Number.isFinite(numId)) redirect("/dashboard/campaigns");
   const session = await auth();
   if (!session?.userId) redirect("/signin");
   const userId = session.userId as string;
@@ -25,9 +26,9 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
     where: { gophishCampaignId: numId, tenantId: org.id },
   });
 
-  // Reconcile gophish results -> training results (handles scheduled campaigns).
+  // Fire-and-forget reconcile; do not block page render.
   if (tc) {
-    await syncTrainingResults(org.id, tc.id, numId, client).catch(() => 0);
+    void syncTrainingResults(org.id, tc.id, numId, client).catch(() => 0);
   }
 
   const report = tc ? await aggregateReport(numId, org.id) : null;

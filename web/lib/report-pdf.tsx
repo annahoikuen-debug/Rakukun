@@ -19,6 +19,7 @@ const styles = StyleSheet.create({
   barWrap: { height: 10, backgroundColor: "#eee", marginTop: 2, marginBottom: 8 },
   bar: { height: 10, backgroundColor: "#4f46e5" },
   comment: { fontSize: 10, lineHeight: 1.5, marginTop: 8 },
+  pageNum: { fontSize: 9, textAlign: "center", marginTop: 10 },
 });
 
 export function ReportDocument({ data }: { data: ReportData }) {
@@ -85,21 +86,26 @@ export function ReportDocument({ data }: { data: ReportData }) {
             <Text style={styles.th}>開封</Text>
             <Text style={styles.th}>教育完了</Text>
           </View>
-          {data.employees.map((e, i) => (
-            <View key={i} style={styles.row}>
-              <Text style={[styles.cell, { flex: 2 }]}>{e.name}</Text>
-              <Text style={styles.cell}>{e.department}</Text>
-              <Text style={[styles.cell, { flex: 2 }]}>{e.email}</Text>
-              <Text style={styles.cell}>{e.isHumanClicked ? "有" : "無"}</Text>
-              <Text style={styles.cell}>{e.quizCompletedAt ? e.quizCompletedAt.slice(0, 10) : "-"}</Text>
-            </View>
-          ))}
+          <View wrap>
+            {data.employees.map((e, i) => (
+              <View key={i} style={styles.row}>
+                <Text style={[styles.cell, { flex: 2 }]}>{e.name}</Text>
+                <Text style={styles.cell}>{e.department}</Text>
+                <Text style={[styles.cell, { flex: 2 }]}>{e.email}</Text>
+                <Text style={styles.cell}>{e.isHumanClicked ? "有" : "無"}</Text>
+                <Text style={styles.cell}>{e.quizCompletedAt ? e.quizCompletedAt.slice(0, 10) : "-"}</Text>
+              </View>
+            ))}
+          </View>
         </View>
 
-        <View style={styles.section}>
+        <View style={styles.section} wrap>
           <Text style={styles.h2}>⑤ 総評・改善計画</Text>
-          <Text style={styles.comment}>{data.reviewComment ?? data.autoComment}</Text>
+          <Text style={styles.comment}>{data.reviewComment || data.autoComment}</Text>
         </View>
+      </Page>
+      <Page size="A4" style={styles.page} fixed>
+        <Text style={styles.pageNum} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
       </Page>
     </Document>
   );

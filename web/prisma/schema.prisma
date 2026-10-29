@@ -96,6 +96,8 @@ model TrainingCampaign {
   results           TrainingResult[]
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
+
+  @@index([tenantId])
 }
 
 model TrainingResult {

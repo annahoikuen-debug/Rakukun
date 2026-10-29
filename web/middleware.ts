@@ -10,12 +10,16 @@ export default auth((req) => {
   const isAuthRoute = pathname.startsWith("/api/auth");
   const isPublic =
     pathname === "/" ||
-    pathname.startsWith("/signin") ||
-    pathname.startsWith("/signup") ||
-    pathname.startsWith("/faq") ||
-    pathname.startsWith("/manual") ||
-    pathname.startsWith("/training") ||
-    pathname.startsWith("/api/training");
+    pathname === "/signin" ||
+    pathname.startsWith("/signin/") ||
+    pathname === "/signup" ||
+    pathname.startsWith("/signup/") ||
+    pathname === "/faq" ||
+    pathname.startsWith("/faq/") ||
+    pathname === "/manual" ||
+    pathname.startsWith("/manual/") ||
+    pathname.startsWith("/training/") ||
+    pathname.startsWith("/api/training/");
   const isLoggedIn = !!req.auth;
 
   if (!isLoggedIn && !isPublic && !isAuthRoute) {
@@ -35,5 +39,5 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|public).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)"],
 };

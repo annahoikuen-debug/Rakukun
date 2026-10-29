@@ -16,14 +16,26 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const { getActiveOrgId } = await import("@/lib/org");
   const orgId = await getActiveOrgId(userId);
   if (!orgId) return NextResponse.json({ error: "No tenant" }, { status: 400 });
-  const { org } = await requireOrg(userId, orgId);
+
+  let org;
+  try {
+    const r = await requireOrg(userId, orgId);
+    org = r.org;
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 403 });
+  }
 
   const tc = await prisma.trainingCampaign.findFirst({
     where: { gophishCampaignId: campaignId, tenantId: org.id },
   });
   if (!tc) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  const client = await orgClient(org.id);
+  let client;
+  try {
+    client = await orgClient(org.id);
+  } catch {
+    return NextResponse.json({ error: "Gophish not provisioned" }, { status: 502 });
+  }
   const mapped = await syncTrainingResults(org.id, tc.id, campaignId, client);
   return NextResponse.json({ ok: true, mapped });
 }
