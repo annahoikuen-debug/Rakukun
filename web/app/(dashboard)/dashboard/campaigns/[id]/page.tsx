@@ -112,7 +112,7 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
                 <th className="p-2 text-left">氏名</th>
                 <th className="p-2">部署</th>
                 <th className="p-2 text-left">メール</th>
-                <th className="p-2">開封</th>
+                <th className="p-2">開収(クリック)</th>
                 <th className="p-2">教育完了日時</th>
               </tr>
             </thead>

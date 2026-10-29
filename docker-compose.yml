@@ -6,8 +6,8 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
       POSTGRES_DB: rakukun
-    ports:
-      - "5432:5432"
+    networks:
+      - app-net
     volumes:
       - pgdata:/var/lib/postgresql/data
 
@@ -21,10 +21,8 @@ services:
       PHISH_LISTEN_URL: 0.0.0.0:80
       PHISH_USE_TLS: "false"
       DB_NAME: sqlite3
-    ports:
-      - "3333:3333"
-      - "80:80"
-    # admin UI/API only reachable on host/loopback via 3333; phish server on 80
+    networks:
+      - app-net
 
   web:
     build:
@@ -36,11 +34,17 @@ services:
       NEXTAUTH_URL: http://localhost:3000
       GOPHISH_API_URL: http://gophish:3333
       GOPHISH_API_KEY: ""
+    networks:
+      - app-net
     ports:
       - "3000:3000"
     depends_on:
       - postgres
       - gophish
+
+networks:
+  app-net:
+    driver: bridge
 
 volumes:
   pgdata:

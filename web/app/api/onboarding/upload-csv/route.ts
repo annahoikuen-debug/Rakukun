@@ -9,6 +9,23 @@ import { z } from "zod";
 
 const emailSchema = z.string().email();
 
+// Detect UTF-8 / Shift-JIS (Windows-31J) from raw bytes.
+// BOM → UTF-8; otherwise try Shift-JIS first (default for JP-Excel CSVs),
+// fall back to UTF-8 so English-only files still decode.
+function decodeCsvBytes(bytes: Buffer | Uint8Array): string {
+  const buf = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
+  // UTF-8 BOM present.
+  if (buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf) {
+    return new TextDecoder("utf-8").decode(buf.slice(3));
+  }
+  const decoder = new TextDecoder("shift_jis", { fatal: true });
+  try {
+    return decoder.decode(buf);
+  } catch {
+    return new TextDecoder("utf-8").decode(buf);
+  }
+}
+
 // Minimal CSV field splitter that respects double-quoted fields.
 function splitCsvLine(line: string): string[] {
   const out: string[] = [];
@@ -54,7 +71,8 @@ export async function POST(req: Request) {
   // external corporate address become a campaign target.
   if (!org.domain) return NextResponse.json({ error: "組織ドメインが未設定です" }, { status: 400 });
 
-  const text = await file.text();
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const text = decodeCsvBytes(buffer);
   const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
   // Header row = the FIRST line contains no "@" (previous check inverted → real CSVs 400'd).
   const isHeader = lines.length > 0 && !lines[0].includes("@");

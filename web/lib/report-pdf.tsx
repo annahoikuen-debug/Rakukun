@@ -96,7 +96,7 @@ export function ReportDocument({ data }: { data: ReportData }) {
             <Text style={[styles.th, { flex: 2 }]}>氏名</Text>
             <Text style={styles.th}>部署</Text>
             <Text style={[styles.th, { flex: 2 }]}>メール</Text>
-            <Text style={styles.th}>開封</Text>
+            <Text style={styles.th}>開収(クリック)</Text>
             <Text style={styles.th}>教育完了</Text>
           </View>
           <View wrap>
