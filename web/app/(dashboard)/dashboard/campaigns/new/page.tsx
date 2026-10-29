@@ -11,11 +11,16 @@ export default async function NewCampaignPage() {
   const { org } = await requireOrg(userId);
   let client;
   try { client = await orgClient(org.id); } catch { return <NotProvisioned />; }
-  const [templates, pages, smtps] = await Promise.all([
-    client.getTemplates().catch(() => []),
-    client.getPages().catch(() => []),
-    client.getSendingProfiles().catch(() => []),
+  const [tplRes, pageRes, smtpRes] = await Promise.allSettled([
+    client.getTemplates(),
+    client.getPages(),
+    client.getSendingProfiles(),
   ]);
+  const fetchFailed = [tplRes, pageRes, smtpRes].some((r) => r.status === "rejected");
+  const templates = tplRes.status === "fulfilled" ? tplRes.value : [];
+  const pages = pageRes.status === "fulfilled" ? pageRes.value : [];
+  const smtps = smtpRes.status === "fulfilled" ? smtpRes.value : [];
+  if (fetchFailed) console.error("new campaign: failed to load gophish resources", { tplRes, pageRes, smtpRes });
 
   return (
     <div>

@@ -13,50 +13,82 @@ export default function OnboardingWizard() {
   const [mode, setMode] = useState<"bulk" | "staggered">("staggered");
   const [sendByDate, setSendByDate] = useState("");
   const [status, setStatus] = useState("");
+  const [busy, setBusy] = useState(false);
 
   async function uploadCsv(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    const res = await fetch("/api/onboarding/upload-csv", { method: "POST", body: fd });
-    const data = await res.json();
-    if (res.ok) {
-      setGroupName(data.groupName ?? "");
-      setStep(2);
-    } else {
-      const detail = Array.isArray(data.details) ? data.details.join(" / ") : "";
-      setStatus((data.error ?? "upload failed") + (detail ? `: ${detail}` : ""));
+    if (busy) return;
+    setBusy(true);
+    try {
+      const fd = new FormData(e.currentTarget);
+      const res = await fetch("/api/onboarding/upload-csv", { method: "POST", body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setGroupName(data.groupName ?? "");
+        setStatus("");
+        setStep(2);
+      } else {
+        const detail = Array.isArray(data.details) ? data.details.join(" / ") : "";
+        setStatus((data.error ?? "upload failed") + (detail ? `: ${detail}` : ""));
+      }
+    } finally {
+      setBusy(false);
     }
   }
 
   async function testSend(e: React.FormEvent) {
     e.preventDefault();
-    const res = await fetch("/api/onboarding/test-send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ smtpName, recipientEmail: recipient, url }),
-    });
-    const data = await res.json();
-    setStatus(res.ok ? "Test email sent. Check your inbox." : data.error ?? "send failed");
+    if (busy) return;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/onboarding/test-send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ smtpName, recipientEmail: recipient, url }),
+      });
+      const data = await res.json().catch(() => ({}));
+      setStatus(res.ok ? "Test email sent. Check your inbox." : data.error ?? "send failed");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function launch(e: React.FormEvent) {
     e.preventDefault();
-    const res = await fetch("/api/onboarding/launch", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: title || `Training ${scenarioKey}`,
-        scenarioKey,
-        pageName: "training-landing",
-        smtpName,
-        groupName,
-        url,
-        mode,
-        sendByDate: mode === "staggered" ? sendByDate : "",
-      }),
-    });
-    const data = await res.json();
-    setStatus(res.ok ? `Launched campaign ${data.campaignId}` : data.error ?? "launch failed");
+    // Guard: double-submit would create two campaigns and send real emails twice.
+    if (busy) return;
+    if (!smtpName || !groupName || !url) {
+      setStatus("送信プロファイル・グループ名・URLは必須です。");
+      return;
+    }
+    if (mode === "staggered") {
+      const d = new Date(sendByDate);
+      if (!sendByDate || isNaN(d.getTime()) || d.getTime() <= Date.now()) {
+        setStatus("分散配信の終了日時を、未来の日時で指定してください。");
+        return;
+      }
+    }
+    setBusy(true);
+    try {
+      const res = await fetch("/api/onboarding/launch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: title || `Training ${scenarioKey}`,
+          scenarioKey,
+          pageName: "training-landing",
+          smtpName,
+          groupName,
+          url,
+          mode,
+          sendByDate: mode === "staggered" ? sendByDate : "",
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      setStatus(res.ok ? `Launched campaign ${data.campaignId}` : data.error ?? "launch failed");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -104,9 +136,9 @@ export default function OnboardingWizard() {
           <select value={scenarioKey} onChange={(e) => setScenarioKey(e.target.value)} className="w-full border p-2 rounded">
             {SCENARIOS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
           </select>
-          <input placeholder="Sending profile name" value={smtpName} onChange={(e) => setSmtpName(e.target.value)} className="w-full border p-2 rounded" />
-          <input placeholder="Group name (from step 1)" value={groupName} onChange={(e) => setGroupName(e.target.value)} className="w-full border p-2 rounded" />
-          <input placeholder="URL base" value={url} onChange={(e) => setUrl(e.target.value)} className="w-full border p-2 rounded" />
+          <input placeholder="Sending profile name" value={smtpName} onChange={(e) => setSmtpName(e.target.value)} className="w-full border p-2 rounded" required />
+          <input placeholder="Group name (from step 1)" value={groupName} readOnly className="w-full border p-2 rounded bg-gray-50" />
+          <input placeholder="URL base" value={url} onChange={(e) => setUrl(e.target.value)} className="w-full border p-2 rounded" required />
           <div className="flex gap-4 text-sm">
             <label className="flex items-center gap-1">
               <input type="radio" checked={mode === "staggered"} onChange={() => setMode("staggered")} />

@@ -50,10 +50,14 @@ export async function POST(req: Request) {
   if (!file) return NextResponse.json({ error: "No file" }, { status: 400 });
   if (file.size > 2_000_000) return NextResponse.json({ error: "ファイルが大きすぎます（最大2MB）" }, { status: 400 });
 
+  // Without a verified tenant domain, freemail checks alone would let any
+  // external corporate address become a campaign target.
+  if (!org.domain) return NextResponse.json({ error: "組織ドメインが未設定です" }, { status: 400 });
+
   const text = await file.text();
   const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
-  // Header row = first line contains no "@" in any column.
-  const isHeader = lines.length > 0 && !lines.some((l) => l.includes("@"));
+  // Header row = the FIRST line contains no "@" (previous check inverted → real CSVs 400'd).
+  const isHeader = lines.length > 0 && !lines[0].includes("@");
   const dataLines = isHeader ? lines.slice(1) : lines;
 
   const employees: { department: string; name: string; email: string }[] = [];
@@ -80,35 +84,39 @@ export async function POST(req: Request) {
 
   let result: { created: number; updated: number };
   try {
-    result = await prisma.$transaction(async (tx) => {
-      // Re-check plan limit inside the transaction to close the TOCTOU gap.
-      const existingRows = await tx.targetEmployee.findMany({
-        where: { tenantId: org.id, email: { in: employees.map((e) => e.email.toLowerCase()) } },
-        select: { email: true },
-      });
-      const existingSet = new Set(existingRows.map((r) => r.email.toLowerCase()));
-      const newCount = employees.filter((e) => !existingSet.has(e.email.toLowerCase())).length;
-      const totalForTenant = await tx.targetEmployee.count({ where: { tenantId: org.id } });
-      if (totalForTenant + newCount > limit) {
-        throw new Error(`LIMIT:${limit}`);
-      }
-      let created = 0;
-      let updated = 0;
-      for (const e of employees) {
-        const emailLower = e.email.toLowerCase();
-        const found = await tx.targetEmployee.findUnique({
-          where: { tenantId_email: { tenantId: org.id, email: emailLower } },
+    result = await prisma.$transaction(
+      async (tx) => {
+        // Re-check plan limit inside the transaction to close the TOCTOU gap.
+        // Serializable isolation prevents two concurrent uploads from both passing.
+        const existingRows = await tx.targetEmployee.findMany({
+          where: { tenantId: org.id, email: { in: employees.map((e) => e.email.toLowerCase()) } },
+          select: { email: true },
         });
-        await tx.targetEmployee.upsert({
-          where: { tenantId_email: { tenantId: org.id, email: emailLower } },
-          update: { department: e.department, name: e.name },
-          create: { tenantId: org.id, department: e.department, name: e.name, email: emailLower },
-        });
-        if (found) updated++;
-        else created++;
-      }
-      return { created, updated };
-    });
+        const existingSet = new Set(existingRows.map((r) => r.email.toLowerCase()));
+        const newCount = employees.filter((e) => !existingSet.has(e.email.toLowerCase())).length;
+        const totalForTenant = await tx.targetEmployee.count({ where: { tenantId: org.id } });
+        if (totalForTenant + newCount > limit) {
+          throw new Error(`LIMIT:${limit}`);
+        }
+        let created = 0;
+        let updated = 0;
+        for (const e of employees) {
+          const emailLower = e.email.toLowerCase();
+          const found = await tx.targetEmployee.findUnique({
+            where: { tenantId_email: { tenantId: org.id, email: emailLower } },
+          });
+          await tx.targetEmployee.upsert({
+            where: { tenantId_email: { tenantId: org.id, email: emailLower } },
+            update: { department: e.department, name: e.name },
+            create: { tenantId: org.id, department: e.department, name: e.name, email: emailLower },
+          });
+          if (found) updated++;
+          else created++;
+        }
+        return { created, updated };
+      },
+      { isolationLevel: "Serializable" },
+    );
   } catch (e: any) {
     const msg = String(e?.message ?? "");
     if (msg.startsWith("LIMIT:")) {
@@ -118,33 +126,29 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "保存に失敗しました" }, { status: 500 });
   }
 
+  // Targets = ALL employees of this tenant (not just this CSV), so re-uploads
+  // don't silently drop employees added by earlier uploads from the Gophish group.
+  const allEmployees = await prisma.targetEmployee.findMany({
+    where: { tenantId: org.id },
+  });
+  const allTargets = (allEmployees as any[]).map((e) => ({
+    email: e.email,
+    first_name: e.name,
+    last_name: "",
+    position: e.department,
+  }));
+
   // Reuse existing group if present (Gophish returns 409 on duplicate name).
   let group: any;
   try {
-    group = await client.createGroup({
-      name: groupName,
-      targets: employees.map((e) => ({
-        email: e.email.toLowerCase(),
-        first_name: e.name,
-        last_name: "",
-        position: e.department,
-      })),
-    });
+    group = await client.createGroup({ name: groupName, targets: allTargets });
   } catch (e: any) {
     // Duplicate name — fetch the existing group and update its targets instead.
     try {
       const groups = await client.getGroups();
       const existing = (groups as any[]).find((g) => g.name === groupName);
       if (existing) {
-        group = await client.updateGroup(existing.id, {
-          name: groupName,
-          targets: employees.map((e) => ({
-            email: e.email.toLowerCase(),
-            first_name: e.name,
-            last_name: "",
-            position: e.department,
-          })),
-        });
+        group = await client.updateGroup(existing.id, { name: groupName, targets: allTargets });
       } else {
         console.error("createGroup failed (not a duplicate):", e);
         return NextResponse.json(

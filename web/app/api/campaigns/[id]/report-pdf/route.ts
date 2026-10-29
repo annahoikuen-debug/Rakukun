@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { requireOrg } from "@/lib/org";
 import { aggregateReport } from "@/lib/report-aggregator";
 import { renderReportPdf } from "@/lib/report-pdf";
+import { toOrgErrorStatus } from "@/lib/errors";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -26,7 +27,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   try {
     await requireOrg(userId, orgId);
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 403 });
+    return NextResponse.json({ error: (e as Error).message }, { status: toOrgErrorStatus(e) });
   }
 
   const data = await aggregateReport(campaignId, orgId);

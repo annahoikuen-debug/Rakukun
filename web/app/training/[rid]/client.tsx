@@ -63,7 +63,7 @@ export default function TrainingLanding({ rid }: { rid: string }) {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ rid }),
-          }).catch(() => {});
+          }).catch((e) => console.error("complete-quiz post failed", e));
         }
         setDone(true);
       }

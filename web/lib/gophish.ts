@@ -90,7 +90,6 @@ export class GophishClient {
 
   // Admin helpers
   createUser(payload: unknown) { return this.request<any>("POST", "/users/", payload); }
-  resetApiKey() { return this.request<any>("POST", "/reset"); }
   sendTestEmail(payload: unknown) { return this.request<any>("POST", "/util/send_test_email", payload); }
 }
 

@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { requireOrg } from "@/lib/org";
+import { toOrgErrorStatus } from "@/lib/errors";
 import { NextResponse } from "next/server";
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -8,7 +9,14 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const session = await auth();
   if (!session?.userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const userId = session.userId as string;
-  const { org, membership } = await requireOrg(userId, id);
+  let org, membership;
+  try {
+    const r = await requireOrg(userId, id);
+    org = r.org;
+    membership = r.membership;
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: toOrgErrorStatus(e) });
+  }
   if (membership.role === "MEMBER") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const employees = await prisma.targetEmployee.findMany({ where: { tenantId: org.id } });

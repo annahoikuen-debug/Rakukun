@@ -16,7 +16,11 @@ export async function getActiveOrgId(userId: string): Promise<string | null> {
     });
     if (m) return fromCookie;
   }
-  const first = await prisma.membership.findFirst({ where: { userId } });
+  // Deterministic fallback: oldest membership becomes the active tenant.
+  const first = await prisma.membership.findFirst({
+    where: { userId },
+    orderBy: { createdAt: "asc" },
+  });
   return first?.tenantId ?? null;
 }
 

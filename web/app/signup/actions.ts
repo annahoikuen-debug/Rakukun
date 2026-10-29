@@ -16,23 +16,24 @@ export async function signupAction(_prevState: unknown, formData: FormData) {
   });
   if (!parsed.success) return { error: "Invalid input" };
   const { email, password, name, orgName } = parsed.data;
+  const emailLower = email.toLowerCase();
 
   // Rate-limit signup attempts by email to prevent Gophish-user resource exhaustion.
-  if (!rateLimit(`signup:${email}`, 3, 60_000)) {
+  if (!rateLimit(`signup:${emailLower}`, 3, 60_000)) {
     return { error: "サインアップ試行回数を超えました。しばらくしてから再試行してください。" };
   }
 
   const domainErr = assertEmailMatchesTenant(email, null);
   if (domainErr) return { error: domainErr };
 
-  const existing = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+  const existing = await prisma.user.findUnique({ where: { email: emailLower } });
   if (existing) return { error: "Email already registered" };
 
   const passwordHash = await bcrypt.hash(password, 10);
   let user;
   try {
     user = await prisma.user.create({
-      data: { email: email.toLowerCase(), name, passwordHash },
+      data: { email: emailLower, name, passwordHash },
     });
   } catch (e: any) {
     if (e?.code === "P2002") return { error: "Email already registered" };
@@ -53,9 +54,16 @@ export async function signupAction(_prevState: unknown, formData: FormData) {
     }
     throw e;
   }
-  await prisma.membership.create({
-    data: { userId: user.id, tenantId: org.id, role: "OWNER" },
-  });
+  try {
+    await prisma.membership.create({
+      data: { userId: user.id, tenantId: org.id, role: "OWNER" },
+    });
+  } catch (e) {
+    // Don't leave an orphan user that would block re-signup.
+    console.error("membership create failed, rolling back user", e);
+    await prisma.user.delete({ where: { id: user.id } }).catch(() => {});
+    throw e;
+  }
 
   // provision gophish user (best-effort; don't block signup on failure)
   try {

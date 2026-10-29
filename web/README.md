@@ -32,9 +32,9 @@ LP・Q&A・マニュアルは相互リンクしており、マーケティング
 ```bash
 cd web
 cp .env.example .env        # DATABASE_URL / AUTH_SECRET / GOPHISH_* を設定
-pnpm install
-pnpm exec prisma migrate dev   # または prisma generate
-pnpm run dev
+npm install
+npx prisma migrate dev   # または prisma generate
+npm run dev
 ```
 
 Docker で一括起動する場合はリポジトリ直下の `docker-compose.yml` を利用します（Postgres + Gophish + Web）。
@@ -42,10 +42,10 @@ Docker で一括起動する場合はリポジトリ直下の `docker-compose.ym
 ## 開発コマンド
 
 ```bash
-pnpm run dev      # 開発サーバ
-pnpm run build    # 本番ビルド
-pnpm run test     # ユニットテスト
-pnpm run lint     # ESLint
+npm run dev      # 開発サーバ
+npm run build    # 本番ビルド
+npm run test     # ユニットテスト
+npm run lint     # ESLint
 ```
 
 ## セキュリティ上の原則

@@ -22,13 +22,16 @@ export async function syncTrainingResults(tenantId: string, trainingCampaignId: 
     const emp = byEmail.get(String(r.email).toLowerCase());
     if (!emp) continue;
     try {
+      // Only map rows that have no result yet — gophishResultId is @unique, so
+      // re-running sync must not overwrite an established mapping or double-count.
       const upd = await prisma.trainingResult.updateMany({
-        where: { trainingCampaignId, targetEmployeeId: emp.id },
+        where: { trainingCampaignId, targetEmployeeId: emp.id, gophishResultId: null },
         data: { gophishResultId: String(r.id), emailSentAt: r.send_date ? new Date(r.send_date) : undefined },
       });
       mapped += upd.count;
-    } catch {
-      // unique conflict (already mapped to another row) — skip
+    } catch (e) {
+      // unique conflict (already mapped to another row) — skip; log others.
+      console.error("syncTrainingResults: update failed", e);
     }
   }
   return mapped;

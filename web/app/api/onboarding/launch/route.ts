@@ -21,11 +21,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: (e as Error).message }, { status: toOrgErrorStatus(e) });
   }
 
-  const body = await req.json();
+  const body = await req.json().catch(() => ({}));
   const { name, scenarioKey, pageName, smtpName, groupName, url, mode, sendByDate } = body ?? {};
   const staggered = mode === "staggered";
   if (staggered && !sendByDate) {
     return NextResponse.json({ error: "分散配信には終了日時（sendByDate）が必要です" }, { status: 400 });
+  }
+  let sendByDateObj: Date | null = null;
+  if (staggered) {
+    sendByDateObj = new Date(sendByDate);
+    if (isNaN(sendByDateObj.getTime()) || sendByDateObj.getTime() <= Date.now()) {
+      return NextResponse.json(
+        { error: "sendByDate は未来の日時として指定してください" },
+        { status: 400 },
+      );
+    }
   }
   const scenario = getScenario(scenarioKey ?? "default");
   const templateName = `scenario-${scenario.key}`;
@@ -38,8 +48,12 @@ export async function POST(req: Request) {
       text: "",
       html: scenario.html,
     });
-  } catch {
-    // template may already exist; ignore
+  } catch (e: any) {
+    // ignore duplicate-name conflicts; rethrow auth/network failures
+    if (!/409|already/i.test(String(e?.message ?? ""))) {
+      console.error("createTemplate failed:", e);
+      return NextResponse.json({ error: "テンプレート作成に失敗しました" }, { status: 500 });
+    }
   }
 
   // Ensure a landing page exists with credential capture disabled
@@ -50,8 +64,11 @@ export async function POST(req: Request) {
       capture_credentials: false,
       capture_passwords: false,
     });
-  } catch {
-    // page may already exist; ignore
+  } catch (e: any) {
+    if (!/409|already/i.test(String(e?.message ?? ""))) {
+      console.error("createPage failed:", e);
+      return NextResponse.json({ error: "ランディングページ作成に失敗しました" }, { status: 500 });
+    }
   }
 
   const payload = {
@@ -61,7 +78,7 @@ export async function POST(req: Request) {
     smtp: { name: smtpName },
     groups: [{ name: groupName }],
     url,
-    send_by_date: sendByDate,
+    send_by_date: staggered ? sendByDate : undefined,
   };
 
   let created: any;
@@ -82,8 +99,8 @@ export async function POST(req: Request) {
       gophishCampaignId: created.id,
       gophishGroupId: null,
       status: created?.status ?? "SCHEDULED",
-      startDate: new Date(),
-      sendByDate: sendByDate && !isNaN(new Date(sendByDate).getTime()) ? new Date(sendByDate) : null,
+      startDate: sendByDateObj ?? new Date(),
+      sendByDate: sendByDateObj,
     },
   });
 

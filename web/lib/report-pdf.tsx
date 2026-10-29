@@ -3,13 +3,21 @@ import path from "path";
 import type { ReportData } from "./report-aggregator";
 
 // Register a CJK font so Japanese text renders (Helvetica has no CJK glyphs).
+// No Bold face exists in the repo, so map the bold weight to the same file —
+// otherwise react-pdf falls back to Helvetica-Bold and CJK glyphs render as tofu.
 Font.register({
   family: "NotoSansJP",
   src: path.join(process.cwd(), "public", "fonts", "NotoSansJP-Regular.otf"),
+  fontWeight: "normal",
+});
+Font.register({
+  family: "NotoSansJP",
+  src: path.join(process.cwd(), "public", "fonts", "NotoSansJP-Regular.otf"),
+  fontWeight: "bold",
 });
 
 const styles = StyleSheet.create({
-  page: { padding: 40, fontSize: 11, fontFamily: "NotoSansJP" },
+  page: { padding: 40, paddingBottom: 56, fontSize: 11, fontFamily: "NotoSansJP" },
   title: { fontSize: 18, textAlign: "center", marginBottom: 16, fontWeight: "bold" },
   section: { marginBottom: 12 },
   h2: { fontSize: 13, marginBottom: 6, fontWeight: "bold" },
@@ -19,13 +27,18 @@ const styles = StyleSheet.create({
   barWrap: { height: 10, backgroundColor: "#eee", marginTop: 2, marginBottom: 8 },
   bar: { height: 10, backgroundColor: "#4f46e5" },
   comment: { fontSize: 10, lineHeight: 1.5, marginTop: 8 },
-  pageNum: { fontSize: 9, textAlign: "center", marginTop: 10 },
+  pageNum: { position: "absolute", bottom: 20, left: 0, right: 0, textAlign: "center", fontSize: 9 },
 });
 
 export function ReportDocument({ data }: { data: ReportData }) {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
+        <Text
+          fixed
+          style={styles.pageNum}
+          render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`}
+        />
         <Text style={styles.title}>標的型攻撃メール訓練 実施報告書</Text>
         <View style={styles.section}>
           <Text>実施企業名: {data.tenantName}</Text>
@@ -103,9 +116,6 @@ export function ReportDocument({ data }: { data: ReportData }) {
           <Text style={styles.h2}>⑤ 総評・改善計画</Text>
           <Text style={styles.comment}>{data.reviewComment || data.autoComment}</Text>
         </View>
-      </Page>
-      <Page size="A4" style={styles.page} fixed>
-        <Text style={styles.pageNum} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
       </Page>
     </Document>
   );

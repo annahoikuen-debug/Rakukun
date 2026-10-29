@@ -109,7 +109,6 @@ export class GophishClient {
   }
   // Users (admin)
   createUser(payload: UserCreateRequest): Promise<GophishUser> { return this.request<GophishUser>("POST", "/users/", payload); }
-  resetApiKey(): Promise<GophishResponse<string>> { return this.request<GophishResponse<string>>("POST", "/reset"); }
 }
 
 export function createGophishClientFromEnv(): GophishClient {

@@ -197,8 +197,13 @@ export async function deleteCampaignAction(id: number) {
     where: { gophishCampaignId: id, tenantId: org.id },
   });
   if (!tc && !link) throw new OrgAccessError("Not found in this tenant", 404);
-  await client.deleteCampaign(id);
-  // Clean up DB rows so a reused id doesn't collide with @@unique constraints.
+  // Clean up DB rows even if Gophish 404s (already deleted) — otherwise the
+  // unique constraints on gophishCampaignId permanently block ID reuse.
+  try {
+    await client.deleteCampaign(id);
+  } catch (e) {
+    console.error("deleteCampaignAction: gophish delete failed (continuing cleanup)", e);
+  }
   await prisma.$transaction([
     prisma.trainingResult.deleteMany({ where: { trainingCampaignId: tc?.id ?? "" } }),
     prisma.trainingCampaign.deleteMany({ where: { gophishCampaignId: id, tenantId: org.id } }),
