@@ -15,6 +15,14 @@ export async function POST(req: Request) {
   const result = await prisma.trainingResult.findFirst({ where: { gophishResultId: rid } });
   if (!result) return NextResponse.json({ ok: false, reason: "not found" }, { status: 404 });
 
+  // Human-click must be recorded before quiz completion can count as a verified follow-up.
+  if (!result.isHumanClicked) {
+    return NextResponse.json(
+      { ok: false, reason: "human click not recorded yet" },
+      { status: 409 },
+    );
+  }
+
   // Idempotent: record quiz completion only; do NOT mark as a click (separate metric).
   await prisma.trainingResult.updateMany({
     where: { id: result.id, quizCompletedAt: null },

@@ -5,6 +5,7 @@ import { requireOrg } from "@/lib/org";
 import { orgClient } from "@/lib/gophish";
 import { OrgAccessError } from "@/lib/errors";
 import { templateSchema, pageSchema, groupSchema, smtpSchema, campaignSchema } from "@/lib/validators";
+import { assertEmailMatchesTenant } from "@/lib/domain-guard";
 import { revalidatePath } from "next/cache";
 
 async function ctx() {
@@ -68,7 +69,7 @@ export async function deletePageAction(id: number) {
 
 // Groups
 export async function createGroupAction(formData: FormData) {
-  const { client } = await ctx();
+  const { client, org } = await ctx();
   const name = String(formData.get("name") ?? "");
   const targetsRaw = String(formData.get("targets") ?? "");
   const targets = targetsRaw
@@ -81,6 +82,13 @@ export async function createGroupAction(formData: FormData) {
     });
   const parsed = groupSchema.safeParse({ name, targets });
   if (!parsed.success) return { error: "Invalid input" };
+
+  // Enforce tenant-domain restriction (no freemail / arbitrary external targets).
+  for (const t of parsed.data.targets) {
+    const domainErr = assertEmailMatchesTenant(t.email, org.domain);
+    if (domainErr) return { error: `${t.email}: ${domainErr}` };
+  }
+
   await client.createGroup(parsed.data);
   revalidatePath("/dashboard/groups");
   return { ok: true };

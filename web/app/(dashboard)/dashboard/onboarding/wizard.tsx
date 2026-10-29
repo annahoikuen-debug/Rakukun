@@ -14,6 +14,7 @@ export default function OnboardingWizard() {
   const [sendByDate, setSendByDate] = useState("");
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
+  const [testConfirmed, setTestConfirmed] = useState(false);
 
   async function uploadCsv(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -47,7 +48,13 @@ export default function OnboardingWizard() {
         body: JSON.stringify({ smtpName, recipientEmail: recipient, url }),
       });
       const data = await res.json().catch(() => ({}));
-      setStatus(res.ok ? "Test email sent. Check your inbox." : data.error ?? "send failed");
+      if (res.ok) {
+        setTestConfirmed(true);
+        setStatus("テスト送信を完了しました。受信トレイに到着していることを確認し、「受信確認」にチェックして次へ進んでください。");
+      } else {
+        setTestConfirmed(false);
+        setStatus(data.error ?? "send failed");
+      }
     } finally {
       setBusy(false);
     }
@@ -125,7 +132,30 @@ export default function OnboardingWizard() {
             <button className="bg-black text-white px-3 py-1 rounded" type="submit">Send test email</button>
           </form>
           {status && <p className="text-sm">{status}</p>}
-          <button onClick={() => setStep(3)} className="border px-3 py-1 rounded text-sm">Next</button>
+          <div className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              checked={testConfirmed}
+              onChange={(e) => setTestConfirmed(e.target.checked)}
+              className="mt-1"
+            />
+            <label className="text-sm text-gray-600">
+              テストメールを受信トレイで確認済み
+            </label>
+          </div>
+          <button
+            onClick={() => {
+              if (!testConfirmed) {
+                setStatus("受信確認チェックにチェックしてください。");
+                return;
+              }
+              setStep(3);
+            }}
+            disabled={!testConfirmed}
+            className={`border px-3 py-1 rounded text-sm ${!testConfirmed ? "opacity-50 cursor-not-allowed" : ""}`}
+          >
+            Next
+          </button>
         </div>
       )}
 

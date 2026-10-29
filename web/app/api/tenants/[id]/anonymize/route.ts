@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { requireOrg } from "@/lib/org";
+import { orgClient } from "@/lib/gophish";
 import { toOrgErrorStatus } from "@/lib/errors";
 import { NextResponse } from "next/server";
 
@@ -28,5 +29,31 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       }),
     ),
   );
-  return NextResponse.json({ anonymized: employees.length });
+
+  // Reflect anonymization in Gophish: empty the tenant group targets so real
+  // emails/first names no longer persist in Gophish for future sends.
+  let client;
+  try {
+    client = await orgClient(org.id);
+  } catch {
+    return NextResponse.json({ anonymized: employees.length, gophish: "not provisioned" });
+  }
+  try {
+    const groups = await client.getGroups();
+    const group = (groups as any[]).find((g) => g.name === `tenant-${org.id}-employees`);
+    if (group) {
+      await client.updateGroup(group.id, {
+        name: `tenant-${org.id}-employees`,
+        targets: [],
+      });
+    }
+  } catch (e) {
+    console.error("anonymize: gophish group clear failed", e);
+    return NextResponse.json({
+      anonymized: employees.length,
+      gophish: "local anonymized; failed to clear Gophish targets",
+    });
+  }
+
+  return NextResponse.json({ anonymized: employees.length, gophish: "targets cleared" });
 }
