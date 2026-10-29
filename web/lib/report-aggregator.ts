@@ -21,6 +21,7 @@ export interface ReportData {
   campaignId: number;
   campaignTitle: string;
   templateKey: string;
+  plan: string;
   periodStart: string | null;
   periodEnd: string | null;
   tenantName: string;
@@ -64,6 +65,7 @@ export async function aggregateReport(campaignId: number, tenantId?: string): Pr
 
   const tenantName = tc?.tenant?.name ?? "Unknown";
   const templateKey = tc?.templateKey ?? "N/A";
+  const plan = tc?.tenant?.plan ?? "FREE";
 
   const results = tc
     ? await prisma.trainingResult.findMany({
@@ -117,6 +119,7 @@ export async function aggregateReport(campaignId: number, tenantId?: string): Pr
     campaignId,
     campaignTitle: tc?.title ?? `Campaign ${campaignId}`,
     templateKey,
+    plan,
     periodStart: tc?.startDate ? tc.startDate.toISOString() : null,
     periodEnd: tc?.sendByDate ? tc.sendByDate.toISOString() : null,
     tenantName,

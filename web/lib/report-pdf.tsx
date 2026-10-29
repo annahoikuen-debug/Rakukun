@@ -28,12 +28,26 @@ const styles = StyleSheet.create({
   bar: { height: 10, backgroundColor: "#4f46e5" },
   comment: { fontSize: 10, lineHeight: 1.5, marginTop: 8 },
   pageNum: { position: "absolute", bottom: 20, left: 0, right: 0, textAlign: "center", fontSize: 9 },
+  watermark: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    fontSize: 40,
+    color: "#d9d9d9",
+    textAlign: "center",
+  },
 });
 
 export function ReportDocument({ data }: { data: ReportData }) {
+  const isFreePlan = data.plan === "FREE";
   return (
     <Document>
       <Page size="A4" style={styles.page}>
+        {isFreePlan && (
+          <Text fixed style={styles.watermark}>SAMPLE</Text>
+        )}
         <Text
           fixed
           style={styles.pageNum}

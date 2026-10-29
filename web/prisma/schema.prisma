@@ -34,6 +34,10 @@ model Tenant {
   stripeCustomerId String?
   gophishUserId    Int?
   gophishApiKey    String?
+  // Parent tenant for partner (agency) plans. NULL for direct customers.
+  parentId         String?
+  parent           Tenant?        @relation("PartnerTenants", fields: [parentId], references: [id])
+  children         Tenant[]       @relation("PartnerTenants")
   memberships      Membership[]
   campaignLinks    CampaignLink[]
   employees        TargetEmployee[]
@@ -154,4 +158,28 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+// Amazon SES Email Event Notification persistence.
+// Records Bounce / Complaint / Delivery events per recipient for delivery
+// reputation monitoring and automatic suppression.
+model SesEvent {
+  id        String   @id @default(cuid())
+  eventType String   // Bounce | Complaint | Delivery
+  messageId String?
+  email     String
+  timestamp DateTime
+  payload   Json?
+
+  @@index([email])
+  @@index([eventType])
+  @@index([timestamp])
+}
+
+// Suppressed recipients that must not receive further training emails.
+model SuppressedEmail {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  reason    String   // hard-bounce | complaint
+  updatedAt DateTime @updatedAt
 }
