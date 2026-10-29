@@ -4,7 +4,8 @@ import { requireOrg } from "@/lib/org";
 import { orgClient } from "@/lib/gophish";
 import { assertEmailMatchesTenant, planLimit } from "@/lib/domain-guard";
 import { toOrgErrorStatus } from "@/lib/errors";
-import { NextResponse } from "next/server";
+import { rateLimit } from "@/lib/rate-limit";
+import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
 const emailSchema = z.string().email();
@@ -48,6 +49,12 @@ function splitCsvLine(line: string): string[] {
 }
 
 export async function POST(req: Request) {
+  // Rate limit by source IP (shared store when Redis is configured).
+  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0]?.trim() || "unknown";
+  if (!rateLimit(`upload-csv:${ip}`, 10, 60_000)) {
+    return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
+  }
+
   const session = await auth();
   if (!session?.userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const userId = session.userId as string;

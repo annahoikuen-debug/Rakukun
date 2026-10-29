@@ -1,9 +1,12 @@
 "use client";
+
 import { useState } from "react";
 
+import { useToast } from "@/components/ui/ToastProvider";
+
 export default function ReviewCommentForm({ campaignId, initial }: { campaignId: number; initial: string }) {
+  const { toast } = useToast();
   const [comment, setComment] = useState(initial);
-  const [status, setStatus] = useState("");
   const [saving, setSaving] = useState(false);
 
   async function save() {
@@ -15,10 +18,14 @@ export default function ReviewCommentForm({ campaignId, initial }: { campaignId:
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ comment }),
       });
-      setStatus(res.ok ? "保存しました" : "保存に失敗しました");
+      if (res.ok) {
+        toast({ variant: "success", title: "Saved", description: "保存しました" });
+      } else {
+        toast({ variant: "error", title: "Save failed", description: "保存に失敗しました" });
+      }
     } catch (e) {
       console.error("review comment save failed", e);
-      setStatus("保存に失敗しました（通信エラー）");
+      toast({ variant: "error", title: "Save failed", description: "保存に失敗しました（通信エラー）" });
     } finally {
       setSaving(false);
     }
@@ -34,8 +41,9 @@ export default function ReviewCommentForm({ campaignId, initial }: { campaignId:
         placeholder="総評・改善計画コメント（PDF報告書に記載されます）"
       />
       <div className="flex items-center gap-3">
-        <button onClick={save} disabled={saving} className="bg-black text-white px-3 py-1 rounded text-sm disabled:opacity-50">コメントを保存</button>
-        {status && <span className="text-sm text-gray-500">{status}</span>}
+        <button onClick={save} disabled={saving} className="bg-black text-white px-3 py-1 rounded text-sm disabled:opacity-50">
+          コメントを保存
+        </button>
       </div>
     </div>
   );

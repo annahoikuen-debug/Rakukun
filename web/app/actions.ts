@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireOrg } from "@/lib/org";
 import { orgClient } from "@/lib/gophish";
 import { OrgAccessError } from "@/lib/errors";
+import { auditLog } from "@/lib/audit";
 import { templateSchema, pageSchema, groupSchema, smtpSchema, campaignSchema } from "@/lib/validators";
 import { assertEmailMatchesTenant } from "@/lib/domain-guard";
 import { revalidatePath } from "next/cache";
@@ -21,7 +22,7 @@ async function ctx() {
 
 // Templates
 export async function createTemplateAction(formData: FormData) {
-  const { client } = await ctx();
+  const { client, userId, org } = await ctx();
   const parsed = templateSchema.safeParse({
     name: formData.get("name"),
     subject: formData.get("subject"),
@@ -32,18 +33,32 @@ export async function createTemplateAction(formData: FormData) {
   if (!parsed.success) return { error: "Invalid input" };
   await client.createTemplate(parsed.data);
   revalidatePath("/dashboard/templates");
+  await auditLog({
+    userId,
+    action: "template.create",
+    entityType: "Template",
+    metadata: { name: parsed.data.name },
+    tenantId: org.id,
+  }).catch(() => {});
   return { ok: true };
 }
 
 export async function deleteTemplateAction(id: number) {
-  const { client } = await ctx();
+  const { client, userId, org } = await ctx();
   await client.deleteTemplate(id);
   revalidatePath("/dashboard/templates");
+  await auditLog({
+    userId,
+    action: "template.delete",
+    entityType: "Template",
+    entityId: String(id),
+    tenantId: org.id,
+  }).catch(() => {});
 }
 
 // Pages (landing pages) - capture flags forced false
 export async function createPageAction(formData: FormData) {
-  const { client } = await ctx();
+  const { client, userId, org } = await ctx();
   const parsed = pageSchema.safeParse({
     name: formData.get("name"),
     html: formData.get("html"),
@@ -58,18 +73,32 @@ export async function createPageAction(formData: FormData) {
     redirect_url: parsed.data.redirect_url,
   });
   revalidatePath("/dashboard/pages");
+  await auditLog({
+    userId,
+    action: "page.create",
+    entityType: "Page",
+    metadata: { name: parsed.data.name },
+    tenantId: org.id,
+  }).catch(() => {});
   return { ok: true };
 }
 
 export async function deletePageAction(id: number) {
-  const { client } = await ctx();
+  const { client, userId, org } = await ctx();
   await client.deletePage(id);
   revalidatePath("/dashboard/pages");
+  await auditLog({
+    userId,
+    action: "page.delete",
+    entityType: "Page",
+    entityId: String(id),
+    tenantId: org.id,
+  }).catch(() => {});
 }
 
 // Groups
 export async function createGroupAction(formData: FormData) {
-  const { client, org } = await ctx();
+  const { client, userId, org } = await ctx();
   const name = String(formData.get("name") ?? "");
   const targetsRaw = String(formData.get("targets") ?? "");
   const targets = targetsRaw
@@ -91,18 +120,32 @@ export async function createGroupAction(formData: FormData) {
 
   await client.createGroup(parsed.data);
   revalidatePath("/dashboard/groups");
+  await auditLog({
+    userId,
+    action: "group.create",
+    entityType: "Group",
+    metadata: { name, targetCount: parsed.data.targets.length },
+    tenantId: org.id,
+  }).catch(() => {});
   return { ok: true };
 }
 
 export async function deleteGroupAction(id: number) {
-  const { client } = await ctx();
+  const { client, userId, org } = await ctx();
   await client.deleteGroup(id);
   revalidatePath("/dashboard/groups");
+  await auditLog({
+    userId,
+    action: "group.delete",
+    entityType: "Group",
+    entityId: String(id),
+    tenantId: org.id,
+  }).catch(() => {});
 }
 
 // Sending profiles
 export async function createSmtpAction(formData: FormData) {
-  const { client } = await ctx();
+  const { client, userId, org } = await ctx();
   const parsed = smtpSchema.safeParse({
     name: formData.get("name"),
     host: formData.get("host"),
@@ -114,18 +157,32 @@ export async function createSmtpAction(formData: FormData) {
   if (!parsed.success) return { error: "Invalid input" };
   await client.createSendingProfile({ ...parsed.data, interface_type: "SMTP" });
   revalidatePath("/dashboard/sending-profiles");
+  await auditLog({
+    userId,
+    action: "smtp.create",
+    entityType: "Smtp",
+    metadata: { name: parsed.data.name, host: parsed.data.host },
+    tenantId: org.id,
+  }).catch(() => {});
   return { ok: true };
 }
 
 export async function deleteSmtpAction(id: number) {
-  const { client } = await ctx();
+  const { client, userId, org } = await ctx();
   await client.deleteSendingProfile(id);
   revalidatePath("/dashboard/sending-profiles");
+  await auditLog({
+    userId,
+    action: "smtp.delete",
+    entityType: "Smtp",
+    entityId: String(id),
+    tenantId: org.id,
+  }).catch(() => {});
 }
 
 // Campaigns
 export async function createCampaignAction(formData: FormData) {
-  const { client, org } = await ctx();
+  const { client, userId, org } = await ctx();
   const parsed = campaignSchema.safeParse({
     name: formData.get("name"),
     templateName: formData.get("templateName"),
@@ -174,9 +231,13 @@ export async function createCampaignAction(formData: FormData) {
       },
     });
     const employees = await prisma.targetEmployee.findMany({ where: { tenantId: org.id } });
-    if (employees.length) {
+    // Pre-send suppression filter — exclude suppressed employees from results.
+    const suppressedEmails = await prisma.suppressedEmail.findMany();
+    const suppressed = new Set(suppressedEmails.map((s) => s.email));
+    const eligibleEmployees = employees.filter((e) => !suppressed.has(e.email));
+    if (eligibleEmployees.length) {
       await prisma.trainingResult.createMany({
-        data: employees.map((e) => ({
+        data: eligibleEmployees.map((e) => ({
           trainingCampaignId: tc.id,
           targetEmployeeId: e.id,
           isHumanClicked: false,
@@ -192,11 +253,19 @@ export async function createCampaignAction(formData: FormData) {
     return { ok: true, warning: "TrainingCampaign の作成に失敗しました" };
   }
   revalidatePath("/dashboard/campaigns");
+  await auditLog({
+    userId,
+    action: "campaign.create",
+    entityType: "Campaign",
+    entityId: String(created.id),
+    metadata: { name: d.name, status: created.status },
+    tenantId: org.id,
+  }).catch(() => {});
   return { ok: true };
 }
 
 export async function deleteCampaignAction(id: number) {
-  const { client, org } = await ctx();
+  const { client, userId, org } = await ctx();
   // Verify tenant ownership before deleting in Gophish.
   const tc = await prisma.trainingCampaign.findFirst({
     where: { gophishCampaignId: id, tenantId: org.id },
@@ -218,10 +287,17 @@ export async function deleteCampaignAction(id: number) {
     prisma.campaignLink.deleteMany({ where: { gophishCampaignId: id, tenantId: org.id } }),
   ]);
   revalidatePath("/dashboard/campaigns");
+  await auditLog({
+    userId,
+    action: "campaign.delete",
+    entityType: "Campaign",
+    entityId: String(id),
+    tenantId: org.id,
+  }).catch(() => {});
 }
 
 export async function completeCampaignAction(id: number) {
-  const { client, org } = await ctx();
+  const { client, userId, org } = await ctx();
   const tc = await prisma.trainingCampaign.findFirst({
     where: { gophishCampaignId: id, tenantId: org.id },
   });
@@ -234,4 +310,11 @@ export async function completeCampaignAction(id: number) {
     await prisma.trainingCampaign.update({ where: { id: tc.id }, data: { status: "COMPLETED" } });
   }
   revalidatePath(`/dashboard/campaigns/${id}`);
+  await auditLog({
+    userId,
+    action: "campaign.complete",
+    entityType: "Campaign",
+    entityId: String(id),
+    tenantId: org.id,
+  }).catch(() => {});
 }

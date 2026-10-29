@@ -7,23 +7,23 @@ describe("rateLimit", () => {
     clearAttempts("key");
   });
 
-  it("allows up to limit per window", () => {
-    for (let i = 0; i < 5; i++) expect(rateLimit("key")).toBe(true);
-    expect(rateLimit("key")).toBe(false);
+  it("allows up to limit per window", async () => {
+    for (let i = 0; i < 5; i++) expect(await rateLimit("key")).toBe(true);
+    expect(await rateLimit("key")).toBe(false);
   });
 
-  it("resets after window", () => {
-    for (let i = 0; i < 5; i++) expect(rateLimit("key", 5, 10)).toBe(true);
-    expect(rateLimit("key", 5, 10)).toBe(false);
+  it("resets after window", async () => {
+    for (let i = 0; i < 5; i++) expect(await rateLimit("key", 5, 10)).toBe(true);
+    expect(await rateLimit("key", 5, 10)).toBe(false);
     // simulate window passed by clearing
     clearAttempts("key");
-    expect(rateLimit("key", 5, 10)).toBe(true);
+    expect(await rateLimit("key", 5, 10)).toBe(true);
   });
 
-  it("keys are independent", () => {
-    for (let i = 0; i < 5; i++) expect(rateLimit("a")).toBe(true);
-    expect(rateLimit("a")).toBe(false);
-    expect(rateLimit("b")).toBe(true);
+  it("keys are independent", async () => {
+    for (let i = 0; i < 5; i++) expect(await rateLimit("a")).toBe(true);
+    expect(await rateLimit("a")).toBe(false);
+    expect(await rateLimit("b")).toBe(true);
   });
 });
 

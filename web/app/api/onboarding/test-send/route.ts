@@ -1,8 +1,11 @@
 import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
 import { requireOrg } from "@/lib/org";
 import { orgClient } from "@/lib/gophish";
 import { assertEmailMatchesTenant } from "@/lib/domain-guard";
 import { toOrgErrorStatus } from "@/lib/errors";
+import { rateLimit } from "@/lib/rate-limit";
+import { auditLog } from "@/lib/audit";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -14,6 +17,12 @@ const bodySchema = z.object({
 });
 
 export async function POST(req: Request) {
+  // Rate limit by source IP.
+  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0]?.trim() || "unknown";
+  if (!rateLimit(`test-send:${ip}`, 20, 60_000)) {
+    return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
+  }
+
   const session = await auth();
   if (!session?.userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const userId = session.userId as string;
@@ -36,6 +45,15 @@ export async function POST(req: Request) {
   }
   const { smtpName, templateName, recipientEmail, url } = parsedBody.data;
 
+  // Pre-send suppression check — never send to a suppressed address.
+  const suppressed = await prisma.suppressedEmail.findUnique({ where: { email: recipientEmail } });
+  if (suppressed) {
+    return NextResponse.json(
+      { error: "このメールアドレスは配信停止リストに登録されています" },
+      { status: 400 },
+    );
+  }
+
   // Reject when tenant domain is unset — otherwise the freemail guard alone allows
   // sending to arbitrary external addresses.
   if (!org.domain) {
@@ -52,6 +70,15 @@ export async function POST(req: Request) {
       email: recipientEmail,
       first_name: "Admin",
     });
+    await auditLog({
+      userId,
+      userEmail: session.user?.email ?? undefined,
+      action: "email.test-send",
+      entityType: "Email",
+      metadata: { smtpName, templateName, recipientEmail },
+      ip,
+      tenantId: org.id,
+    }).catch(() => {});
     return NextResponse.json(res);
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "send failed" }, { status: 500 });

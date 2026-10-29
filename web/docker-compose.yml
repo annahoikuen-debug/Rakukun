@@ -4,12 +4,27 @@ services:
     image: postgres:16
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: rakukun
-    ports:
-      - "5432:5432"
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-rakukun}
+    networks:
+      - app-net
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d rakukun"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    networks:
+      - app-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   gophish:
     build:
@@ -21,28 +36,48 @@ services:
       PHISH_LISTEN_URL: 0.0.0.0:80
       PHISH_USE_TLS: "false"
       DB_NAME: sqlite3
-    ports:
-      - "3333:3333"
-      - "80:80"
+    networks:
+      - app-net
+    # Internal network only — no exposed ports. Accessible to web via gophish:3333.
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
 
   web:
     build:
       context: .
-      dockerfile: Dockerfile.web
+      dockerfile: Dockerfile.production
     environment:
-      DATABASE_URL: postgresql://postgres:password@postgres:5432/rakukun?schema=public
-      AUTH_SECRET: change-me
-      NEXTAUTH_URL: http://localhost:3000
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-rakukun}?schema=public
+      REDIS_URL: redis://redis:6379
+      AUTH_SECRET: ${AUTH_SECRET}
+      NEXTAUTH_URL: ${NEXTAUTH_URL}
       GOPHISH_ADMIN_URL: http://gophish:3333
-      GOPHISH_ADMIN_API_KEY: ""
-      GOPHISH_KEY_ENCRYPTION_SECRET: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      GOPHISH_ADMIN_API_KEY: ${GOPHISH_ADMIN_API_KEY}
+      GOPHISH_KEY_ENCRYPTION_SECRET: ${GOPHISH_KEY_ENCRYPTION_SECRET}
+      ACTIVE_ORG_COOKIE: ${ACTIVE_ORG_COOKIE:-active_org_id}
+      NODE_ENV: production
+    networks:
+      - app-net
     ports:
       - "3000:3000"
     depends_on:
-      - postgres
-      - gophish
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      gophish:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1); }).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+networks:
+  app-net:
+    driver: bridge
 
 volumes:
   pgdata:

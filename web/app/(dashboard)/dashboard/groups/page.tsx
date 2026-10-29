@@ -15,21 +15,35 @@ export default async function GroupsPage() {
   return (
     <div>
       <h1 className="text-2xl font-semibold mb-4">Groups</h1>
-      <form action={createGroupAction as any} className="space-y-2 mb-6 max-w-xl border p-4 rounded">
+      <form action={createGroupAction as any} id="create-group-form" className="space-y-2 mb-6 max-w-xl border p-4 rounded">
         <input name="name" required placeholder="Group name" className="w-full border p-2 rounded" />
         <textarea name="targets" required placeholder="Targets: email,first,last,position (one per line)" className="w-full border p-2 rounded" rows={6} />
         <button className="bg-black text-white px-3 py-1 rounded" type="submit">Create group</button>
       </form>
-      <ul className="space-y-2">
-        {groups.map((g: any) => (
-          <li key={g.id} className="flex items-center justify-between border p-2 rounded">
-            <span>{g.name} ({g.targets?.length ?? 0} targets)</span>
-            <form action={deleteGroupAction.bind(null, g.id) as any}>
-              <button className="text-red-600 text-sm">Delete</button>
-            </form>
-          </li>
-        ))}
-      </ul>
+      {groups.length === 0 ? (
+        <div className="border rounded-lg p-8 text-center bg-gray-50">
+          <span className="text-gray-400 text-2xl">👥</span>
+          <h2 className="text-sm font-semibold mt-2">No groups</h2>
+          <p className="text-xs text-gray-500 mt-1">Create a group of targets to use in campaigns.</p>
+          <button
+            form="create-group-form"
+            className="mt-3 inline-block text-xs underline hover:text-indigo-600"
+          >
+            Create group
+          </button>
+        </div>
+      ) : (
+        <ul className="space-y-2">
+          {groups.map((g: any) => (
+            <li key={g.id} className="flex items-center justify-between border p-2 rounded">
+              <span>{g.name} ({g.targets?.length ?? 0} targets)</span>
+              <form action={deleteGroupAction.bind(null, g.id) as any}>
+                <button className="text-red-600 text-sm">Delete</button>
+              </form>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

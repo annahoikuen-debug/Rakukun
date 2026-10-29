@@ -3,13 +3,16 @@ import { prisma } from "@/lib/prisma";
 import { requireOrg } from "@/lib/org";
 import { orgClient } from "@/lib/gophish";
 import { toOrgErrorStatus } from "@/lib/errors";
+import { auditLog } from "@/lib/audit";
 import { NextResponse } from "next/server";
 
-export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await auth();
   if (!session?.userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const userId = session.userId as string;
+  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0]?.trim() || "unknown";
+  const userAgent = req.headers.get("user-agent") ?? undefined;
   let org, membership;
   try {
     const r = await requireOrg(userId, id);
@@ -49,11 +52,34 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     }
   } catch (e) {
     console.error("anonymize: gophish group clear failed", e);
+    await auditLog({
+      userId,
+      userEmail: session.user?.email ?? undefined,
+      action: "tenant.anonymize",
+      entityType: "Tenant",
+      entityId: org.id,
+      metadata: { anonymized: employees.length, gophish: "failed" },
+      ip,
+      userAgent,
+      tenantId: org.id,
+    }).catch(() => {});
     return NextResponse.json({
       anonymized: employees.length,
       gophish: "local anonymized; failed to clear Gophish targets",
     });
   }
+
+  await auditLog({
+    userId,
+    userEmail: session.user?.email ?? undefined,
+    action: "tenant.anonymize",
+    entityType: "Tenant",
+    entityId: org.id,
+    metadata: { anonymized: employees.length, gophish: "cleared" },
+    ip,
+    userAgent,
+    tenantId: org.id,
+  }).catch(() => {});
 
   return NextResponse.json({ anonymized: employees.length, gophish: "targets cleared" });
 }

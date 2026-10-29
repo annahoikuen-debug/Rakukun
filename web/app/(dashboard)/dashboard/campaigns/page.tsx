@@ -34,7 +34,21 @@ export default async function CampaignsPage() {
               </td>
             </tr>
           ))}
-          {campaigns.length === 0 && <tr><td colSpan={3} className="p-4 text-center text-gray-500">No campaigns</td></tr>}
+          {campaigns.length === 0 && (
+            <tr>
+              <td colSpan={3} className="p-8 text-center">
+                <span className="text-gray-400 text-2xl">📭</span>
+                <h2 className="text-sm font-semibold mt-2">No campaigns</h2>
+                <p className="text-xs text-gray-500 mt-1">Create your first campaign to start phishing simulations.</p>
+                <Link
+                  href="/dashboard/campaigns/new"
+                  className="mt-3 inline-block text-xs underline hover:text-indigo-600"
+                >
+                  Create campaign
+                </Link>
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>

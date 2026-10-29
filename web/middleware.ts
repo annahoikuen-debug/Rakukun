@@ -1,11 +1,16 @@
 import NextAuth from "next-auth";
 import { authConfig } from "./auth.config";
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
+import { withRequestLogging } from "@/lib/middleware-logger";
 
 // Edge-safe auth (no Prisma/bcrypt) — Node-only auth lives in ./auth.ts for handlers.
 export const { auth } = NextAuth(authConfig);
 
-export default auth((req) => {
+export default auth((req: NextRequest) => {
+  const start = Date.now();
+  const requestId = req.headers.get("x-request-id") ?? crypto.randomUUID();
+  const userId = (req as any).auth?.userId;
+
   const { pathname } = req.nextUrl;
   const isAuthRoute = pathname.startsWith("/api/auth");
   const isPublic =
@@ -20,22 +25,27 @@ export default auth((req) => {
     pathname.startsWith("/manual/") ||
     pathname.startsWith("/training/") ||
     pathname.startsWith("/api/training/");
-  const isLoggedIn = !!req.auth;
+  const isLoggedIn = !!userId;
+
+  let response: NextResponse;
 
   if (!isLoggedIn && !isPublic && !isAuthRoute) {
     if (pathname.startsWith("/api")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      response = NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    } else {
+      const url = req.nextUrl.clone();
+      url.pathname = "/signin";
+      response = NextResponse.redirect(url);
     }
-    const url = req.nextUrl.clone();
-    url.pathname = "/signin";
-    return NextResponse.redirect(url);
-  }
-  if (isLoggedIn && (pathname === "/signin" || pathname === "/signup")) {
+  } else if (isLoggedIn && (pathname === "/signin" || pathname === "/signup")) {
     const url = req.nextUrl.clone();
     url.pathname = "/dashboard";
-    return NextResponse.redirect(url);
+    response = NextResponse.redirect(url);
+  } else {
+    response = NextResponse.next();
   }
-  return NextResponse.next();
+
+  return withRequestLogging(req, response, start, { requestId, userId });
 });
 
 export const config = {

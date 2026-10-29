@@ -4,9 +4,17 @@ import { requireOrg } from "@/lib/org";
 import { orgClient } from "@/lib/gophish";
 import { getScenario } from "@/lib/scenarios";
 import { toOrgErrorStatus } from "@/lib/errors";
+import { rateLimit } from "@/lib/rate-limit";
+import { auditLog } from "@/lib/audit";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
+  // Rate limit by source IP.
+  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0]?.trim() || "unknown";
+  if (!rateLimit(`launch:${ip}`, 30, 60_000)) {
+    return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
+  }
+
   const session = await auth();
   if (!session?.userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const userId = session.userId as string;
@@ -104,11 +112,14 @@ export async function POST(req: Request) {
     },
   });
 
-  // Create result rows for each target employee
+  // Create result rows for each target employee (excluding suppressed recipients).
+  const suppressedEmails = await prisma.suppressedEmail.findMany();
+  const suppressed = new Set(suppressedEmails.map((s) => s.email));
   const employees = await prisma.targetEmployee.findMany({ where: { tenantId: org.id } });
-  if (employees.length) {
+  const eligibleEmployees = employees.filter((e) => !suppressed.has(e.email));
+  if (eligibleEmployees.length) {
     await prisma.trainingResult.createMany({
-      data: employees.map((e:any) => ({
+      data: eligibleEmployees.map((e:any) => ({
         trainingCampaignId: tc.id,
         targetEmployeeId: e.id,
         isHumanClicked: false,
@@ -121,6 +132,17 @@ export async function POST(req: Request) {
   // Best-effort initial mapping; scheduled campaigns get reconciled later via sync-results
   const { syncTrainingResults } = await import("@/lib/rid-sync");
   await syncTrainingResults(org.id, tc.id, created.id, client);
+
+  await auditLog({
+    userId,
+    userEmail: session.user?.email ?? undefined,
+    action: "campaign.launch",
+    entityType: "Campaign",
+    entityId: String(created.id),
+    metadata: { name, scenarioKey, groupName },
+    ip,
+    tenantId: org.id,
+  }).catch(() => {});
 
   return NextResponse.json({ campaignId: created.id, trainingCampaignId: tc.id });
 }

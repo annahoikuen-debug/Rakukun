@@ -42,6 +42,7 @@ model Tenant {
   campaignLinks    CampaignLink[]
   employees        TargetEmployee[]
   campaigns        TrainingCampaign[]
+  suppressedEmails SuppressedEmail[]
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 }
@@ -177,9 +178,42 @@ model SesEvent {
 }
 
 // Suppressed recipients that must not receive further training emails.
+//
+// Design decision: `email` remains globally `@unique` (not composite on
+// [tenantId, email]). The SES webhook has no tenant context, so it must be
+// able to upsert a suppressed email by email alone. Making email globally
+// unique also means a suppressed address is never re-emailed by any tenant,
+// which is the safest behavior for production suppression. `tenantId` is
+// optional and indexed so per-tenant suppression can be queried/enforced
+// where org context is available (test-send, launch, createCampaignAction).
 model SuppressedEmail {
   id        String   @id @default(cuid())
   email     String   @unique
+  tenantId  String?
+  tenant    Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   reason    String   // hard-bounce | complaint
   updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+// Audit log for security-relevant mutations and tenant switches.
+// Writes are best-effort (never break the main flow if the audit write fails).
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  userEmail String?
+  action    String   // e.g. "campaign.create", "template.delete", "tenant.switch"
+  entityType String?
+  entityId  String?
+  metadata  Json?
+  ipAddress String?
+  userAgent String?
+  tenantId  String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@index([tenantId])
 }
