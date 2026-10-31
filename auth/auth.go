@@ -34,6 +34,18 @@ var ErrEmptyPassword = errors.New("No password provided")
 // than MinPasswordLength
 var ErrPasswordTooShort = fmt.Errorf("Password must be at least %d characters", MinPasswordLength)
 
+// ErrPasswordMissingUppercase is thrown when a password lacks an uppercase letter
+var ErrPasswordMissingUppercase = errors.New("Password must contain at least one uppercase letter")
+
+// ErrPasswordMissingLowercase is thrown when a password lacks a lowercase letter
+var ErrPasswordMissingLowercase = errors.New("Password must contain at least one lowercase letter")
+
+// ErrPasswordMissingDigit is thrown when a password lacks a digit
+var ErrPasswordMissingDigit = errors.New("Password must contain at least one digit")
+
+// ErrPasswordMissingSpecial is thrown when a password lacks a special character
+var ErrPasswordMissingSpecial = errors.New("Password must contain at least one special character")
+
 // GenerateSecureKey returns the hex representation of key generated from n
 // random bytes
 func GenerateSecureKey(n int) string {
@@ -55,8 +67,12 @@ func GeneratePasswordHash(password string) (string, error) {
 // CheckPasswordPolicy ensures the provided password is valid according to our
 // password policy.
 //
-// The current password policy is simply a minimum of 8 characters, though this
-// may change in the future (see #1538).
+// The password policy requires:
+// - Minimum 8 characters
+// - At least one uppercase letter
+// - At least one lowercase letter
+// - At least one digit
+// - At least one special character
 func CheckPasswordPolicy(password string) error {
 	switch {
 	// Admittedly, empty passwords are a subset of too short passwords, but it
@@ -66,6 +82,38 @@ func CheckPasswordPolicy(password string) error {
 	case len(password) < MinPasswordLength:
 		return ErrPasswordTooShort
 	}
+
+	hasUpper := false
+	hasLower := false
+	hasDigit := false
+	hasSpecial := false
+
+	for _, c := range password {
+		switch {
+		case c >= 'A' && c <= 'Z':
+			hasUpper = true
+		case c >= 'a' && c <= 'z':
+			hasLower = true
+		case c >= '0' && c <= '9':
+			hasDigit = true
+		default:
+			hasSpecial = true
+		}
+	}
+
+	if !hasUpper {
+		return ErrPasswordMissingUppercase
+	}
+	if !hasLower {
+		return ErrPasswordMissingLowercase
+	}
+	if !hasDigit {
+		return ErrPasswordMissingDigit
+	}
+	if !hasSpecial {
+		return ErrPasswordMissingSpecial
+	}
+
 	return nil
 }
 

@@ -75,7 +75,8 @@ func GetContext(handler http.Handler) http.HandlerFunc {
 // parameter, or a Bearer token.
 func RequireAPIKey(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		// Restrict CORS to same-origin only
+		w.Header().Set("Access-Control-Allow-Origin", "same-origin")
 		if r.Method == "OPTIONS" {
 			w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
 			w.Header().Set("Access-Control-Max-Age", "1000")
@@ -180,9 +181,11 @@ func RequirePermission(perm string) func(http.Handler) http.HandlerFunc {
 // practices.
 func ApplySecurityHeaders(next http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		csp := "frame-ancestors 'none';"
+		csp := "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self';"
 		w.Header().Set("Content-Security-Policy", csp)
 		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		next.ServeHTTP(w, r)
 	}
 }

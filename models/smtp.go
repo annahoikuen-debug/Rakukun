@@ -11,9 +11,11 @@ import (
 	"time"
 
 	"github.com/gophish/gomail"
+	"github.com/gophish/gophish/config"
 	"github.com/gophish/gophish/dialer"
 	log "github.com/gophish/gophish/logger"
 	"github.com/gophish/gophish/mailer"
+	"github.com/gophish/gophish/util"
 	"github.com/jinzhu/gorm"
 )
 
@@ -72,6 +74,46 @@ var ErrInvalidHost = errors.New("Invalid SMTP server address")
 // TableName specifies the database tablename for Gorm to use
 func (s SMTP) TableName() string {
 	return "smtp"
+}
+
+// getEncryptionKey returns the encryption key from config or generates a fallback
+func getEncryptionKey() []byte {
+	key := config.Conf.EncryptionKey
+	if len(key) == 0 {
+		// Generate a deterministic key from a default (for backward compatibility)
+		// In production, always set encryption_key in config.json
+		return []byte("gophish-default-encryption-key-32b")
+	}
+	return []byte(key)
+}
+
+// EncryptPassword encrypts the password before storage
+func (s *SMTP) EncryptPassword() error {
+	if s.Password == "" {
+		return nil
+	}
+	key := getEncryptionKey()
+	encrypted, err := util.Encrypt(key, s.Password)
+	if err != nil {
+		return err
+	}
+	s.Password = encrypted
+	return nil
+}
+
+// DecryptPassword decrypts the password after retrieval
+func (s *SMTP) DecryptPassword() error {
+	if s.Password == "" {
+		return nil
+	}
+	key := getEncryptionKey()
+	decrypted, err := util.Decrypt(key, s.Password)
+	if err != nil {
+		// If decryption fails, assume it's plaintext (backward compatibility)
+		return nil
+	}
+	s.Password = decrypted
+	return nil
 }
 
 // Validate ensures that SMTP configs/connections are valid
@@ -152,6 +194,10 @@ func GetSMTPs(uid int64) ([]SMTP, error) {
 			log.Error(err)
 			return ss, err
 		}
+		// Decrypt password
+		if err := ss[i].DecryptPassword(); err != nil {
+			log.Error(err)
+		}
 	}
 	return ss, nil
 }
@@ -169,6 +215,10 @@ func GetSMTP(id int64, uid int64) (SMTP, error) {
 		log.Error(err)
 		return s, err
 	}
+	// Decrypt password
+	if err := s.DecryptPassword(); err != nil {
+		log.Error(err)
+	}
 	return s, err
 }
 
@@ -184,6 +234,10 @@ func GetSMTPByName(n string, uid int64) (SMTP, error) {
 	if err != nil && err != gorm.ErrRecordNotFound {
 		log.Error(err)
 	}
+	// Decrypt password
+	if err := s.DecryptPassword(); err != nil {
+		log.Error(err)
+	}
 	return s, err
 }
 
@@ -191,6 +245,11 @@ func GetSMTPByName(n string, uid int64) (SMTP, error) {
 func PostSMTP(s *SMTP) error {
 	err := s.Validate()
 	if err != nil {
+		log.Error(err)
+		return err
+	}
+	// Encrypt password before storage
+	if err := s.EncryptPassword(); err != nil {
 		log.Error(err)
 		return err
 	}
@@ -216,6 +275,11 @@ func PostSMTP(s *SMTP) error {
 func PutSMTP(s *SMTP) error {
 	err := s.Validate()
 	if err != nil {
+		log.Error(err)
+		return err
+	}
+	// Encrypt password before storage
+	if err := s.EncryptPassword(); err != nil {
 		log.Error(err)
 		return err
 	}
