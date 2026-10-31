@@ -18,12 +18,17 @@ import {
   E2E_MFA_SECRET,
   E2E_PASSWORD,
   E2E_USER_EMAIL,
+  killEmbeddedPostgres,
 } from "./fixtures";
 
 const dataDir = path.join(os.tmpdir(), "rakukun-e2e-pg");
 const webRoot = path.join(__dirname, "..");
 
 export default async function globalSetup() {
+  // A previous run's orphan would hold the data dir and the postgres binary
+  // lock — clear it before wiping.
+  killEmbeddedPostgres();
+
   // Fresh cluster every run so seeds and migrations are deterministic.
   // Windows can keep temp files briefly locked after a previous run, so retry.
   for (let attempt = 1; attempt <= 5; attempt++) {
