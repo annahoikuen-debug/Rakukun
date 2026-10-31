@@ -9,6 +9,7 @@ const REDIS_MODULE = "@upstash/redis";
 type RedisStore = {
   get: (key: string) => Promise<string | null>;
   set: (key: string, value: string, ttlSeconds: number) => Promise<void>;
+  del: (key: string) => Promise<void>;
 };
 
 let redisStore: RedisStore | null = null;
@@ -19,10 +20,21 @@ async function loadRedis(): Promise<RedisStore | null> {
   redisEnabled = true;
   if (!process.env.REDIS_URL) return null;
   try {
-    const mod = (await import(REDIS_MODULE)) as { Redis: new (opts: { url: string }) => RedisStore };
+    const mod = (await import(/* webpackIgnore: true */ REDIS_MODULE)) as {
+      Redis: new (opts: { url: string; token?: string }) => {
+        get: (key: string) => Promise<string | null>;
+        set: (key: string, value: string, opts?: { ex?: number }) => Promise<unknown>;
+        del: (key: string) => Promise<unknown>;
+      };
+    };
     const client = new mod.Redis({ url: process.env.REDIS_URL as string });
-    redisStore = client;
-    return client;
+    // Wrap so the rest of the module keeps a uniform (ttlSeconds) signature.
+    redisStore = {
+      get: (key) => client.get(key),
+      set: (key, value, ttlSeconds) => client.set(key, value, { ex: ttlSeconds }).then(() => undefined),
+      del: (key) => client.del(key).then(() => undefined),
+    };
+    return redisStore;
   } catch {
     // redis package absent or misconfigured — fall back to in-memory.
     return null;
@@ -67,6 +79,10 @@ export async function rateLimit(key: string, limit = 5, windowMs = 60_000): Prom
   return memoryAllowed(key, limit, windowMs);
 }
 
-export function clearAttempts(key: string) {
+export async function clearAttempts(key: string): Promise<void> {
   attempts.delete(key);
+  const store = await loadRedis();
+  if (store) {
+    try { await store.del(`ratelimit:${key}`); } catch { /* best-effort */ }
+  }
 }

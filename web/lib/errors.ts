@@ -14,6 +14,16 @@ export function toOrgErrorStatus(err: unknown): number {
 }
 
 /**
+ * Produce a client-safe error message. OrgAccessError messages are already
+ * generic; any other error is collapsed to a generic string so internal
+ * details (stack, DB errors, etc.) are never leaked to the client.
+ */
+export function toClientMessage(err: unknown): string {
+  if (err instanceof OrgAccessError) return err.message;
+  return "Internal server error";
+}
+
+/**
  * Structured error logging. Captures the error message, stack trace, and an
  * optional context object so production log collectors can correlate errors.
  * Never throws.

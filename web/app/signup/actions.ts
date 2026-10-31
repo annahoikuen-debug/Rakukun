@@ -6,6 +6,8 @@ import { provisionOrgGophishUser } from "@/lib/org";
 import { assertEmailMatchesTenant, emailDomain } from "@/lib/domain-guard";
 import { redirect } from "next/navigation";
 import { rateLimit } from "@/lib/rate-limit";
+import { clientIp } from "@/lib/client-ip";
+import { headers } from "next/headers";
 
 export async function signupAction(_prevState: unknown, formData: FormData) {
   const parsed = signupSchema.safeParse({
@@ -19,7 +21,12 @@ export async function signupAction(_prevState: unknown, formData: FormData) {
   const emailLower = email.toLowerCase();
 
   // Rate-limit signup attempts by email to prevent Gophish-user resource exhaustion.
-  if (!rateLimit(`signup:${emailLower}`, 3, 60_000)) {
+  if (!(await rateLimit(`signup:${emailLower}`, 3, 60_000))) {
+    return { error: "サインアップ試行回数を超えました。しばらくしてから再試行してください。" };
+  }
+  // IP-level guard against mass tenant creation from a single source.
+  const ip = clientIp(await headers());
+  if (!(await rateLimit(`signup-ip:${ip}`, 5, 3600_000))) {
     return { error: "サインアップ試行回数を超えました。しばらくしてから再試行してください。" };
   }
 
@@ -58,9 +65,10 @@ export async function signupAction(_prevState: unknown, formData: FormData) {
     await prisma.membership.create({
       data: { userId: user.id, tenantId: org.id, role: "OWNER" },
     });
-  } catch (e) {
-    // Don't leave an orphan user that would block re-signup.
-    console.error("membership create failed, rolling back user", e);
+   } catch (e) {
+    // Don't leave an orphan user/tenant that would block re-signup.
+    console.error("membership create failed, rolling back user and tenant", e);
+    await prisma.tenant.delete({ where: { id: org.id } }).catch(() => {});
     await prisma.user.delete({ where: { id: user.id } }).catch(() => {});
     throw e;
   }

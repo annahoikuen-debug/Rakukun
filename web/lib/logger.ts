@@ -52,10 +52,8 @@ function write(level: LogLevel, message: string, meta: Record<string, unknown> =
   // In production keep logs compact; in dev pretty-print for readability.
   const out = isProduction ? line : JSON.stringify(entry, null, 2);
   if (level === "error") {
-    // eslint-disable-next-line no-console
     console.error(out);
   } else {
-    // eslint-disable-next-line no-console
     console.log(out);
   }
 }

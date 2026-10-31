@@ -21,11 +21,21 @@ async function fetchSubscribeURL(subscribeURL: string): Promise<void> {
 }
 
 // Canonical message construction per AWS SNS signature verification.
+// https://docs.aws.amazon.com/sns/latest/dg/SendMessageToHttp.verify.signature.html
+// Only the fields specific to the message Type are included, in the exact order.
 function canonicalMessage(message: Record<string, unknown>): string {
-  const keys = Object.keys(message).sort();
+  const type = String(message.Type ?? "");
+  const fields: string[] =
+    type === "Notification"
+      ? ["Message", "MessageId", "Subject", "Timestamp", "TopicArn", "Type"]
+      : ["Message", "MessageId", "SubscribeURL", "Timestamp", "Token", "TopicArn", "Type"];
+
   const parts: string[] = [];
-  for (const k of keys) {
-    parts.push(k + "\n" + String(message[k]) + "\n");
+  for (const key of fields) {
+    if (message[key] === undefined || message[key] === null) continue;
+    // Subject is optional for Notification messages.
+    if (key === "Subject" && message[key] === undefined) continue;
+    parts.push(key + "\n" + String(message[key]) + "\n");
   }
   return parts.join("");
 }
@@ -64,7 +74,7 @@ async function verifySnsSignature(message: Record<string, unknown>): Promise<boo
 export async function POST(req: Request) {
   // Rate limit by source IP to prevent webhook flooding.
   const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0]?.trim() || "unknown";
-  if (!rateLimit(`ses-webhook:${ip}`, 100, 60_000)) {
+  if (!(await rateLimit(`ses-webhook:${ip}`, 100, 60_000))) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 

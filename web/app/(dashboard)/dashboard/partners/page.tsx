@@ -54,12 +54,12 @@ export default async function PartnersPage() {
                   <td className="p-2 text-center">{child._count.campaigns}</td>
                   <td className="p-2">{child.plan}</td>
                   <td className="p-2">
-                    <Link
-                      href={`/active-org/switch/${child.id}`}
-                      className="border px-2 py-1 rounded text-sm hover:bg-gray-50"
-                    >
-                      テナント切替
-                    </Link>
+                    <form action="/api/active-org" method="POST" className="inline">
+                      <input type="hidden" name="orgId" value={child.id} />
+                      <button type="submit" className="border px-2 py-1 rounded text-sm hover:bg-gray-50">
+                        テナント切替
+                      </button>
+                    </form>
                   </td>
                 </tr>
               ))}

@@ -2,7 +2,8 @@ import type { NextAuthConfig } from "next-auth";
 
 // Edge-safe base config (no Prisma/bcrypt/adapter) — used by middleware.
 export const authConfig = {
-  session: { strategy: "jwt" },
+  session: { strategy: "jwt", maxAge: 8 * 60 * 60 },
+  useSecureCookies: true,
   providers: [],
   callbacks: {
     async jwt({ token, user }) {

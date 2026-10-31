@@ -3,16 +3,17 @@ import { prisma } from "@/lib/prisma";
 import { requireOrg } from "@/lib/org";
 import { orgClient } from "@/lib/gophish";
 import { getScenario } from "@/lib/scenarios";
-import { toOrgErrorStatus } from "@/lib/errors";
+import { toOrgErrorStatus, toClientMessage } from "@/lib/errors";
 import { rateLimit } from "@/lib/rate-limit";
+import { clientIp } from "@/lib/client-ip";
 import { auditLog } from "@/lib/audit";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
-  // Rate limit by source IP.
-  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0]?.trim() || "unknown";
-  if (!rateLimit(`launch:${ip}`, 30, 60_000)) {
-    return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
+  // Rate limit by source IP (trusted proxy resolution).
+  const ip = clientIp(req.headers);
+  if (!(await rateLimit(`launch:${ip}`, 30, 60_000))) {
+    return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429, headers: { "Retry-After": "60" } });
   }
 
   const session = await auth();
@@ -26,7 +27,11 @@ export async function POST(req: Request) {
     org = r.org;
     client = await orgClient(r.org.id);
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: toOrgErrorStatus(e) });
+    return NextResponse.json({ error: toClientMessage(e) }, { status: toOrgErrorStatus(e) });
+  }
+  // Tenant-level guard against mass campaign launches.
+  if (!(await rateLimit(`launch-tenant:${org.id}`, 10, 3600_000))) {
+    return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429, headers: { "Retry-After": "3600" } });
   }
 
   const body = await req.json().catch(() => ({}));

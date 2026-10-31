@@ -8,14 +8,9 @@ import { logger } from "@/lib/logger";
  * audit write can never break the main request flow. Failures are logged
  * via the structured logger for visibility.
  *
- * Usage:
- *   import { auditLog } from "@/lib/audit";
- *   await auditLog({
- *     userId, userEmail, action: "campaign.create",
- *     entityType: "Campaign", entityId: created.id,
- *     metadata: { name, status },
- *     ip, userAgent, tenantId: org.id,
- *   });
+ * For high-severity events (severity: "high") the write is retried up to 3
+ * times with backoff before giving up, so security-relevant audit entries are
+ * far less likely to be silently dropped.
  */
 export async function auditLog({
   userId,
@@ -27,6 +22,7 @@ export async function auditLog({
   ip,
   userAgent,
   tenantId,
+  severity,
 }: {
   userId?: string;
   userEmail?: string;
@@ -37,29 +33,41 @@ export async function auditLog({
   ip?: string;
   userAgent?: string;
   tenantId?: string;
+  severity?: "low" | "high";
 }): Promise<void> {
-  try {
-    await prisma.auditLog.create({
-      data: {
-        userId,
-        userEmail,
-        action,
-        entityType,
-        entityId,
-        metadata: metadata ? (metadata as any) : undefined,
-        ipAddress: ip,
-        userAgent,
-        tenantId,
-      },
-    });
-  } catch (err) {
-    // Best-effort: never break the main flow if the audit write fails.
-    logger.error("audit log write failed", {
-      action,
-      entityType,
-      entityId,
-      tenantId,
-      error: err instanceof Error ? err.message : String(err),
-    });
+  const high = severity === "high";
+  const maxAttempts = high ? 3 : 1;
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      await prisma.auditLog.create({
+        data: {
+          userId,
+          userEmail,
+          action,
+          entityType,
+          entityId,
+          metadata: metadata ? (metadata as any) : undefined,
+          ipAddress: ip,
+          userAgent,
+          tenantId,
+        },
+      });
+      return;
+    } catch (err) {
+      lastErr = err;
+      if (attempt < maxAttempts - 1) {
+        await new Promise((r) => setTimeout(r, 50 * (attempt + 1)));
+      }
+    }
   }
+  logger.error("audit log write failed", {
+    action,
+    entityType,
+    entityId,
+    tenantId,
+    severity: severity ?? "low",
+    attempts: maxAttempts,
+    error: lastErr instanceof Error ? lastErr.message : String(lastErr),
+  });
 }

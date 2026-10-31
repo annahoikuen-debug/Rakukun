@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { createTemplateAction } from "@/app/actions";
 import { templateSchema } from "@/lib/validators";
 import { useToast } from "@/components/ui/ToastProvider";
+import { sanitizeHtml } from "@/lib/sanitize-html";
 
 const VARIABLES = [
   { key: "{{.FirstName}}", desc: "Recipient first name" },
@@ -163,7 +164,7 @@ export default function NewTemplatePage() {
               <div className="flex-1 overflow-auto p-4 bg-gray-50 text-sm">
                 <div
                   className="prose prose-sm max-w-none"
-                  dangerouslySetInnerHTML={{ __html: form.html }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(form.html) }}
                 />
               </div>
             </div>

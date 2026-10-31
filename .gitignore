@@ -29,3 +29,11 @@ gophish_admin.key
 *.exe
 gophish.db*
 gophish
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Agent tooling state
+.commandcode/

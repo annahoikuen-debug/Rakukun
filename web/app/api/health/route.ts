@@ -57,6 +57,6 @@ export async function GET() {
 
   return NextResponse.json(
     { status, timestamp, checks: { db, gophish, redis } },
-    { status: allOk ? 200 : 200 }
+    { status: allOk ? 200 : 503 }
   );
 }

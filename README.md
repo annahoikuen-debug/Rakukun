@@ -27,8 +27,8 @@ LP・Q&A・マニュアルは相互リンクしており、マーケティング
 - **配信・計測エンジン:** `gophish`（Docker）— プライベートネットワーク内、管理ポート 3333 は内部のみ（3333/5432 はホスト非公開）
 - **PDF生成:** `@react-pdf/renderer`（Noto Sans JP 埋め込み、A4縦。FREEプランは SAMPLE 透かし入り）
 - **メール送信基盤:** Amazon SES（SMTP 設定＋SNS Webhookでバウンス/苦情記録・抑制リスト管理）
-- **認証:** NextAuth v5（Credentials + Prisma Adapter）
-- **決済:** Stripe は未実装（`/api/billing/checkout` は 501 スタブ。v0.2 以降で実装予定）
+- **認証:** NextAuth v5（Credentials + Prisma Adapter、管理ロールは MFA 必須）
+- **決済:** Stripe（`/api/billing/checkout` で年額サブスクリプション作成、`/api/billing/webhook` で署名検証＋イベント冪等処理。`STRIPE_SECRET_KEY` 未設定時は 503 で拒否）
 
 マルチテナント分離は「組織ごとに専用の Gophish ユーザー（APIキー）」を発行し、Gophish の per-user フィルタリングで実現しています。パートナー（代理店）プランでは親テナントから子テナントを切替管理できます。
 

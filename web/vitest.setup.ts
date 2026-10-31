@@ -19,22 +19,52 @@ vi.mock("@/lib/prisma", () => {
       findFirst: vi.fn(),
       findMany: vi.fn(),
       findUnique: vi.fn(),
+      update: vi.fn(),
+      create: vi.fn(),
+      delete: vi.fn(),
+      deleteMany: vi.fn(),
     },
     trainingResult: {
       findMany: vi.fn(),
       findUnique: vi.fn(),
+      updateMany: vi.fn(),
+      deleteMany: vi.fn(),
+      createMany: vi.fn(),
+    },
+    campaignLink: {
+      findFirst: vi.fn(),
+      deleteMany: vi.fn(),
     },
     targetEmployee: {
       findMany: vi.fn(),
       findUnique: vi.fn(),
+      update: vi.fn(),
+      createMany: vi.fn(),
+      count: vi.fn(),
     },
-    membership: {
+    processedStripeEvent: {
+      create: vi.fn(),
+      delete: vi.fn(),
+    },
+    auditLog: {
+      create: vi.fn(),
+    },
+    mfaRecoveryCode: {
       findMany: vi.fn(),
-      findUnique: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      deleteMany: vi.fn(),
     },
     user: {
       findUnique: vi.fn(),
       findMany: vi.fn(),
+      update: vi.fn(),
+      create: vi.fn(),
+      delete: vi.fn(),
+    },
+    membership: {
+      findMany: vi.fn(),
+      findUnique: vi.fn(),
     },
     sesEvent: {
       create: vi.fn(),

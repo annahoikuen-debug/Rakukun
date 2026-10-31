@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { prisma } from "./prisma";
 
 // Reconcile Gophish results with TrainingResult rows by email, setting gophishResultId.
@@ -24,11 +25,21 @@ export async function syncTrainingResults(tenantId: string, trainingCampaignId: 
     try {
       // Only map rows that have no result yet — gophishResultId is @unique, so
       // re-running sync must not overwrite an established mapping or double-count.
-      const upd = await prisma.trainingResult.updateMany({
-        where: { trainingCampaignId, targetEmployeeId: emp.id, gophishResultId: null },
-        data: { gophishResultId: String(r.id), emailSentAt: r.send_date ? new Date(r.send_date) : undefined },
+      // Issue a publicToken (unguessable) for the training landing URL.
+      const existing = await prisma.trainingResult.findFirst({
+        where: { trainingCampaignId, targetEmployeeId: emp.id },
+        select: { id: true, gophishResultId: true, publicToken: true },
       });
-      mapped += upd.count;
+      if (!existing || existing.gophishResultId) continue;
+      await prisma.trainingResult.update({
+        where: { id: existing.id },
+        data: {
+          gophishResultId: String(r.id),
+          publicToken: existing.publicToken ?? crypto.randomUUID(),
+          emailSentAt: r.send_date ? new Date(r.send_date) : undefined,
+        },
+      });
+      mapped += 1;
     } catch (e) {
       // unique conflict (already mapped to another row) — skip; log others.
       console.error("syncTrainingResults: update failed", e);

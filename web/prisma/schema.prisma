@@ -18,11 +18,15 @@ model User {
   email        String       @unique
   name         String?
   passwordHash String
-  memberships  Membership[]
-  accounts     Account[]
-  sessions     Session[]
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  memberships        Membership[]
+  accounts           Account[]
+  sessions           Session[]
+  mfaEnabled         Boolean      @default(false)
+  mfaSecret          String?
+  mfaConfirmedAt     DateTime?
+  recoveryCodes      MfaRecoveryCode[]
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
 }
 
 model Tenant {
@@ -32,6 +36,8 @@ model Tenant {
   domain           String?            @unique
   plan             String             @default("FREE")
   stripeCustomerId String?
+  stripeSubscriptionId String?
+  stripePriceId String?
   gophishUserId    Int?
   gophishApiKey    String?
   // Parent tenant for partner (agency) plans. NULL for direct customers.
@@ -112,6 +118,7 @@ model TrainingResult {
   targetEmployeeId   String
   targetEmployee     TargetEmployee   @relation(fields: [targetEmployeeId], references: [id], onDelete: Cascade)
   gophishResultId    String?          @unique
+  publicToken        String?          @unique
   emailSentAt        DateTime?
   isHumanClicked     Boolean          @default(false)
   clickedAt          DateTime?
@@ -195,6 +202,24 @@ model SuppressedEmail {
   updatedAt DateTime @updatedAt
 
   @@index([tenantId])
+}
+
+// MFA recovery codes (hashed, single-use).
+model MfaRecoveryCode {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  @@index([userId])
+}
+
+// Processed Stripe webhook events for idempotency (duplicate delivery safe).
+model ProcessedStripeEvent {
+  id        String   @id
+  type      String
+  receivedAt DateTime @default(now())
 }
 
 // Audit log for security-relevant mutations and tenant switches.

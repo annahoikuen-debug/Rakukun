@@ -8,6 +8,7 @@ import { auditLog } from "@/lib/audit";
 import { templateSchema, pageSchema, groupSchema, smtpSchema, campaignSchema } from "@/lib/validators";
 import { assertEmailMatchesTenant } from "@/lib/domain-guard";
 import { revalidatePath } from "next/cache";
+import type { Template, Page, Group, SendingProfile } from "@/types/gophish";
 
 async function ctx() {
   const session = await auth();
@@ -45,6 +46,11 @@ export async function createTemplateAction(formData: FormData) {
 
 export async function deleteTemplateAction(id: number) {
   const { client, userId, org } = await ctx();
+  // Verify the template belongs to this tenant before deleting (defense in depth).
+  const templates = (await client.getTemplates().catch(() => [])) as Template[];
+  if (!templates.some((t) => t?.id === id)) {
+    throw new OrgAccessError("Not found in this tenant", 404);
+  }
   await client.deleteTemplate(id);
   revalidatePath("/dashboard/templates");
   await auditLog({
@@ -53,6 +59,7 @@ export async function deleteTemplateAction(id: number) {
     entityType: "Template",
     entityId: String(id),
     tenantId: org.id,
+    severity: "high",
   }).catch(() => {});
 }
 
@@ -85,6 +92,10 @@ export async function createPageAction(formData: FormData) {
 
 export async function deletePageAction(id: number) {
   const { client, userId, org } = await ctx();
+  const pages = (await client.getPages().catch(() => [])) as Page[];
+  if (!pages.some((p) => p?.id === id)) {
+    throw new OrgAccessError("Not found in this tenant", 404);
+  }
   await client.deletePage(id);
   revalidatePath("/dashboard/pages");
   await auditLog({
@@ -93,6 +104,7 @@ export async function deletePageAction(id: number) {
     entityType: "Page",
     entityId: String(id),
     tenantId: org.id,
+    severity: "high",
   }).catch(() => {});
 }
 
@@ -132,6 +144,10 @@ export async function createGroupAction(formData: FormData) {
 
 export async function deleteGroupAction(id: number) {
   const { client, userId, org } = await ctx();
+  const groups = (await client.getGroups().catch(() => [])) as Group[];
+  if (!groups.some((g) => g?.id === id)) {
+    throw new OrgAccessError("Not found in this tenant", 404);
+  }
   await client.deleteGroup(id);
   revalidatePath("/dashboard/groups");
   await auditLog({
@@ -140,6 +156,7 @@ export async function deleteGroupAction(id: number) {
     entityType: "Group",
     entityId: String(id),
     tenantId: org.id,
+    severity: "high",
   }).catch(() => {});
 }
 
@@ -169,6 +186,10 @@ export async function createSmtpAction(formData: FormData) {
 
 export async function deleteSmtpAction(id: number) {
   const { client, userId, org } = await ctx();
+  const profiles = (await client.getSendingProfiles().catch(() => [])) as SendingProfile[];
+  if (!profiles.some((s) => s?.id === id)) {
+    throw new OrgAccessError("Not found in this tenant", 404);
+  }
   await client.deleteSendingProfile(id);
   revalidatePath("/dashboard/sending-profiles");
   await auditLog({
@@ -177,6 +198,7 @@ export async function deleteSmtpAction(id: number) {
     entityType: "Smtp",
     entityId: String(id),
     tenantId: org.id,
+    severity: "high",
   }).catch(() => {});
 }
 
@@ -293,6 +315,7 @@ export async function deleteCampaignAction(id: number) {
     entityType: "Campaign",
     entityId: String(id),
     tenantId: org.id,
+    severity: "high",
   }).catch(() => {});
 }
 

@@ -2,7 +2,13 @@ import { z } from "zod";
 
 export const signupSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(8),
+  password: z
+    .string()
+    .min(12, "Password must be at least 12 characters")
+    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+    .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+    .regex(/[0-9]/, "Password must contain at least one digit")
+    .regex(/[^A-Za-z0-9]/, "Password must contain at least one special character"),
   name: z.string().min(1).optional(),
   orgName: z.string().min(1),
 });
@@ -30,7 +36,8 @@ export const targetSchema = z.object({
 
 export const groupSchema = z.object({
   name: z.string().min(1),
-  targets: z.array(targetSchema).min(1),
+  // Upper bound guards against oversized payload memory exhaustion (zod DoS).
+  targets: z.array(targetSchema).min(1).max(5000),
 });
 
 export const smtpSchema = z.object({
@@ -47,7 +54,7 @@ export const campaignSchema = z.object({
   templateName: z.string().min(1),
   pageName: z.string().min(1),
   smtpName: z.string().min(1),
-  groupNames: z.array(z.string().min(1)).min(1),
+  groupNames: z.array(z.string().min(1)).min(1).max(50),
   url: z.string().url(),
   launch_date: z.string().optional(),
   send_by_date: z.string().optional(),

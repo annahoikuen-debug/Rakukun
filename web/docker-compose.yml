@@ -31,8 +31,8 @@ services:
       context: ..
       dockerfile: Dockerfile
     environment:
-      ADMIN_LISTEN_URL: 0.0.0.0:3333
-      ADMIN_USE_TLS: "false"
+      ADMIN_LISTEN_URL: 127.0.0.1:3333
+      ADMIN_USE_TLS: "true"
       PHISH_LISTEN_URL: 0.0.0.0:80
       PHISH_USE_TLS: "false"
       DB_NAME: sqlite3

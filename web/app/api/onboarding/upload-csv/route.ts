@@ -5,7 +5,7 @@ import { orgClient } from "@/lib/gophish";
 import { assertEmailMatchesTenant, planLimit } from "@/lib/domain-guard";
 import { toOrgErrorStatus } from "@/lib/errors";
 import { rateLimit } from "@/lib/rate-limit";
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { z } from "zod";
 
 const emailSchema = z.string().email();
@@ -51,7 +51,7 @@ function splitCsvLine(line: string): string[] {
 export async function POST(req: Request) {
   // Rate limit by source IP (shared store when Redis is configured).
   const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0]?.trim() || "unknown";
-  if (!rateLimit(`upload-csv:${ip}`, 10, 60_000)) {
+  if (!(await rateLimit(`upload-csv:${ip}`, 10, 60_000))) {
     return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
   }
 
@@ -115,7 +115,7 @@ export async function POST(req: Request) {
         // Serializable isolation prevents two concurrent uploads from both passing.
         const existingRows = await tx.targetEmployee.findMany({
           where: { tenantId: org.id, email: { in: employees.map((e) => e.email.toLowerCase()) } },
-          select: { email: true },
+          select: { id: true, email: true },
         });
         const existingSet = new Set(existingRows.map((r) => r.email.toLowerCase()));
         const newCount = employees.filter((e) => !existingSet.has(e.email.toLowerCase())).length;
@@ -123,22 +123,29 @@ export async function POST(req: Request) {
         if (totalForTenant + newCount > limit) {
           throw new Error(`LIMIT:${limit}`);
         }
-        let created = 0;
-        let updated = 0;
-        for (const e of employees) {
-          const emailLower = e.email.toLowerCase();
-          const found = await tx.targetEmployee.findUnique({
-            where: { tenantId_email: { tenantId: org.id, email: emailLower } },
+        // Batch: reuse the fetched rows for create/update split.
+        const existingMap = new Map(existingRows.map((r) => [r.email.toLowerCase(), r.id]));
+        const toCreate = employees.filter((e) => !existingMap.has(e.email.toLowerCase()));
+        const toUpdate = employees.filter((e) => existingMap.has(e.email.toLowerCase()));
+
+        if (toCreate.length) {
+          await tx.targetEmployee.createMany({
+            data: toCreate.map((e) => ({
+              tenantId: org.id,
+              department: e.department,
+              name: e.name,
+              email: e.email.toLowerCase(),
+            })),
+            skipDuplicates: true,
           });
-          await tx.targetEmployee.upsert({
-            where: { tenantId_email: { tenantId: org.id, email: emailLower } },
-            update: { department: e.department, name: e.name },
-            create: { tenantId: org.id, department: e.department, name: e.name, email: emailLower },
-          });
-          if (found) updated++;
-          else created++;
         }
-        return { created, updated };
+        for (const e of toUpdate) {
+          await tx.targetEmployee.update({
+            where: { tenantId_email: { tenantId: org.id, email: e.email.toLowerCase() } },
+            data: { department: e.department, name: e.name },
+          });
+        }
+        return { created: toCreate.length, updated: toUpdate.length };
       },
       { isolationLevel: "Serializable" },
     );

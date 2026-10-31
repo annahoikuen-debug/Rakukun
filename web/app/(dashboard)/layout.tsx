@@ -17,6 +17,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
     include: { tenant: true },
   });
 
+  // MFA enforcement: OWNER/ADMIN of the active org must enable MFA.
+  const activeMembership = memberships.find((m) => m.tenantId === orgId);
+  const role = activeMembership?.role;
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { mfaEnabled: true } });
+  if ((role === "OWNER" || role === "ADMIN") && !user?.mfaEnabled) {
+    redirect("/mfa-required");
+  }
+
   return (
     <div className="min-h-screen flex">
       <aside className="w-56 border-r p-4 space-y-2">
