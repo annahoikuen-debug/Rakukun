@@ -18,10 +18,16 @@ export default function SignInPage() {
     if (needMfa && mfaToken) payload.mfaToken = mfaToken;
     const res = await signIn("credentials", { ...payload, redirect: false });
     if (res?.error) {
-      // Password-only attempt failed: this may be an MFA-enabled account.
-      // Reveal the second-factor field so the user can complete the challenge.
-      if (!needMfa) setNeedMfa(true);
-      setError(needMfa ? "認証に失敗しました（コードを確認してください）" : "Invalid credentials");
+      // The server returns code="mfa_required" only after the password
+      // matched, so the second-factor field is revealed exclusively for
+      // MFA-enabled accounts (wrong passwords never show it).
+      if (res.code === "mfa_required") {
+        setNeedMfa(true);
+        setError(needMfa ? "認証に失敗しました（コードを確認してください）" : "二段階認証コードを入力してください");
+      } else {
+        setNeedMfa(false);
+        setError("メールアドレスまたはパスワードが正しくありません");
+      }
     } else {
       router.push("/dashboard");
     }

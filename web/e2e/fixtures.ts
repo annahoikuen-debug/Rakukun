@@ -1,0 +1,20 @@
+// Shared constants for the E2E stack: an embedded Postgres (started by
+// global-setup) plus the production Next.js build served on a dedicated port
+// so a developer's dev server on :3000 is never hijacked.
+
+export const E2E_DB_PORT = 5433;
+export const E2E_DB_NAME = "rakukun_e2e";
+export const E2E_DB_URL = `postgresql://postgres:password@localhost:${E2E_DB_PORT}/${E2E_DB_NAME}?schema=public`;
+
+export const E2E_APP_PORT = 3100;
+export const E2E_APP_ORIGIN = `http://localhost:${E2E_APP_PORT}`;
+
+// Test-only credentials. These must be >= 32 chars (crypto.ts requirement).
+export const E2E_ENCRYPTION_SECRET = "e2e-encryption-secret-0123456789abcdef";
+export const E2E_AUTH_SECRET = "e2e-auth-secret-e2e-auth-secret-e2e-32chars";
+
+export const E2E_PASSWORD = "E2ePassw0rd!";
+export const E2E_USER_EMAIL = "e2e-user@example.com"; // no MFA
+export const E2E_MFA_EMAIL = "e2e-mfa@example.com"; // MFA enabled, OWNER
+// Fixed TOTP secret so specs can compute codes without reading the DB.
+export const E2E_MFA_SECRET = "JBSWY3DPEHPK3PXP";

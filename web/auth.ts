@@ -1,11 +1,21 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import { CredentialsSignin } from "next-auth";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 import { prisma } from "./lib/prisma";
 import { rateLimit, clearAttempts } from "./lib/rate-limit";
 import { verifySecondFactor } from "./lib/mfa-login";
 import { authConfig } from "./auth.config";
+
+// Returned only AFTER the password verified correctly, so the client can
+// reveal the second-factor field without leaking which accounts have MFA.
+class MfaRequiredSignin extends CredentialsSignin {
+  constructor() {
+    super();
+    this.code = "mfa_required";
+  }
+}
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...authConfig,
@@ -39,11 +49,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const ok = await bcrypt.compare(password, user.passwordHash);
         if (!ok) return null;
         // MFA gate: for enabled accounts a valid second factor is required
-        // before a session can be created.
+        // before a session can be created. Signal the client (only after the
+        // password matched) so it can prompt for the second factor.
         if (user.mfaEnabled) {
           const token = String(creds?.mfaToken ?? "");
           const secondOk = await verifySecondFactor(user.id, user.mfaSecret, token);
-          if (!secondOk) return null;
+          if (!secondOk) throw new MfaRequiredSignin();
         }
         await clearAttempts(`login:${email}`);
         return { id: user.id, email: user.email, name: user.name };
