@@ -31,7 +31,7 @@ func makeImportRequest(ctx *testContext, allowedHosts []string, url string) *htt
 
 func TestDefaultDeniedImport(t *testing.T) {
 	ctx := setupTest(t)
-	metadataURL := "http://169.254.169.254/latest/meta-data/"
+	metadataURL := "https://169.254.169.254/latest/meta-data/"
 	response := makeImportRequest(ctx, []string{}, metadataURL)
 	expectedCode := http.StatusBadRequest
 	if response.Code != expectedCode {
@@ -50,7 +50,7 @@ func TestDefaultDeniedImport(t *testing.T) {
 func TestDefaultAllowedImport(t *testing.T) {
 	ctx := setupTest(t)
 	h := "<html><head></head><body><img src=\"/test.png\"/></body></html>"
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, h)
 	}))
 	defer ts.Close()
@@ -64,7 +64,7 @@ func TestDefaultAllowedImport(t *testing.T) {
 func TestCustomDeniedImport(t *testing.T) {
 	ctx := setupTest(t)
 	h := "<html><head></head><body><img src=\"/test.png\"/></body></html>"
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, h)
 	}))
 	defer ts.Close()
