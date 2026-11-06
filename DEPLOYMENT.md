@@ -31,12 +31,14 @@ Edit `.env` and set production values:
 | `GOPHISH_KEY_ENCRYPTION_SECRET` | >= 32 char secret for encrypting stored Gophish keys | Yes |
 | `ACTIVE_ORG_COOKIE` | Cookie name for active tenant (default `active_org_id`) | No |
 | `SES_WEBHOOK_SECRET` | Secret to validate SES/SNS webhook signatures | Yes |
+| `STRIPE_SECRET_KEY` | Stripe secret key (sk_live_... or sk_test_...) | Yes |
+| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret | Yes |
 
 Generate secrets:
 
 ```bash
-openssl rand -base64 32        # AUTH_SECRET
-openssl rand -hex 32           # GOPHISH_KEY_ENCRYPTION_SECRET / SES_WEBHOOK_SECRET
+openssl rand -base64 32        # AUTH_SECRET / GOPHISH_KEY_ENCRYPTION_SECRET / SES_WEBHOOK_SECRET
+openssl rand -hex 32           # STRIPE_WEBHOOK_SECRET
 ```
 
 ## 2. Build the production image
@@ -57,7 +59,7 @@ The Dockerfile is multi-stage:
 
 ## 3. Start the stack
 
-From `E:\Rakukun\Rakukun\web`:
+From `E:\Rakukun\Rakukun` (repository root):
 
 ```bash
 docker compose up -d
@@ -71,6 +73,8 @@ Services:
 | `redis` | `redis:7` | Shared rate-limit store & sessions |
 | `gophish` | internal build | Gophish admin + phishing API, **no exposed ports** (internal network only) |
 | `web` | `Dockerfile.production` | Next.js app, exposed on port 3000 |
+
+> **TLS note:** `docker-compose.yml` sets `ADMIN_USE_TLS: "false"` and `PHISH_USE_TLS: "false"` because no certificate files are committed to the repository. If you need TLS, generate `gophish_admin.crt` / `gophish_admin.key` (and phish certs) and flip these to `"true"`, and update `GOPHISH_ADMIN_URL` to `https://...` accordingly.
 
 ## 4. Run database migrations
 
@@ -96,7 +100,7 @@ POST https://<your-domain>/api/ses/webhook
 
 1. In the AWS SES console, create an SNS topic and subscribe an HTTPS endpoint to it:
    `https://<your-domain>/api/ses/webhook`
-2. Confirm the subscription (SES sends a `SubscriptionConfirmation` — the endpoint handles it automatically).
+2. Confirm the subscription (SES sends a `SubscriptionConfirmation` — the endpoint verifies the SNS signature **before** fetching the `SubscribeURL` to prevent SSRF).
 3. Set `SES_WEBHOOK_SECRET` in `.env` and configure signature validation in production (see `web/app/api/ses/webhook/route.ts`).
 4. Enable SES event publishing (Bounce, Complaint, Delivery) to the SNS topic.
 
@@ -122,16 +126,19 @@ Example response:
 }
 ```
 
-The Docker Compose `web` service includes a `healthcheck` that polls this endpoint. Use it with your orchestrator/load balancer for readiness/liveness probes.
+The `redis` check is informational only; overall status depends on the database connection. The Docker Compose `web` service includes a `healthcheck` that polls this endpoint. Use it with your orchestrator/load balancer for readiness/liveness probes.
 
 ## 7. Rate limiting
 
-Rate limiting is enforced on sensitive routes:
+Rate limiting is enforced on sensitive routes (IP + tenant dual limits):
 
 - `/api/onboarding/upload-csv`
 - `/api/onboarding/test-send`
 - `/api/onboarding/launch`
 - `/api/ses/webhook` (by source IP)
+- `/api/errors` (client-side error reporting)
+- `/api/training/track-human-click` and `/api/training/complete-quiz` (public training endpoints)
+- `/api/mfa/verify` (MFA code verification)
 - login, signup, and password-related endpoints (stricter)
 
 When `REDIS_URL` is set, a shared Redis store is used so limits work across multiple instances. Otherwise an in-memory fallback is used (single-instance only).
@@ -145,7 +152,7 @@ Audit logs are written to the `AuditLog` table for key mutations (templates, pag
 - Structured JSON logging via `web/lib/logger.ts` (respects `NODE_ENV`).
 - Request logging middleware via `web/lib/middleware-logger.ts` (method, path, status, duration, user ID).
 - Structured error logging via `web/lib/errors.ts` (`logError(error, context)`).
-- Client-side error reporting endpoint: `POST /api/errors`.
+- Client-side error reporting endpoint: `POST /api/errors` (rate-limited).
 
 ## 10. Stopping
 
