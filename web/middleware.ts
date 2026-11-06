@@ -24,7 +24,12 @@ export default auth((req: NextRequest) => {
     pathname === "/manual" ||
     pathname.startsWith("/manual/") ||
     pathname.startsWith("/training/") ||
-    pathname.startsWith("/api/training/");
+    pathname.startsWith("/api/training/") ||
+    // External/webhook callers have no session; each endpoint authenticates itself.
+    pathname === "/api/health" ||
+    pathname.startsWith("/api/billing/webhook") ||
+    pathname.startsWith("/api/ses/webhook") ||
+    pathname.startsWith("/api/errors");
   const isLoggedIn = !!userId;
 
   let response: NextResponse;

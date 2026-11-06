@@ -11,7 +11,7 @@ func TestPasswordPolicy(t *testing.T) {
 		t.Fatalf("unexpected error received. expected %v got %v", ErrPasswordTooShort, got)
 	}
 
-	candidate = "valid password"
+	candidate = "ValidPass1!"
 	got = CheckPasswordPolicy(candidate)
 	if got != nil {
 		t.Fatalf("unexpected error received. expected %v got %v", nil, got)
@@ -19,9 +19,9 @@ func TestPasswordPolicy(t *testing.T) {
 }
 
 func TestValidatePasswordChange(t *testing.T) {
-	newPassword := "valid password"
-	confirmPassword := "invalid"
-	currentPassword := "current password"
+	newPassword := "ValidPass1!"
+	confirmPassword := "Different1!"
+	currentPassword := "CurrentPass1!"
 	currentHash, err := GeneratePasswordHash(currentPassword)
 	if err != nil {
 		t.Fatalf("unexpected error generating password hash: %v", err)

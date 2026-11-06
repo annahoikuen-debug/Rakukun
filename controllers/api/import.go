@@ -6,8 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"strings"
+	"time"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/gophish/gophish/dialer"
@@ -114,21 +117,50 @@ func (as *Server) ImportSite(w http.ResponseWriter, r *http.Request) {
 		JSONResponse(w, models.Response{Success: false, Message: err.Error()}, http.StatusBadRequest)
 		return
 	}
+	u, err := url.Parse(cr.URL)
+	if err != nil {
+		JSONResponse(w, models.Response{Success: false, Message: "Invalid URL"}, http.StatusBadRequest)
+		return
+	}
+	if u.Scheme != "https" {
+		JSONResponse(w, models.Response{Success: false, Message: "Only HTTPS URLs are allowed"}, http.StatusBadRequest)
+		return
+	}
+
 	restrictedDialer := dialer.Dialer()
 	tr := &http.Transport{
 		DialContext: restrictedDialer.DialContext,
 		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: true,
+			InsecureSkipVerify: false,
 		},
 	}
-	client := &http.Client{Transport: tr}
-	resp, err := client.Get(cr.URL)
+	client := &http.Client{
+		Transport: tr,
+		Timeout:   10 * time.Second,
+		// Follow redirects only to HTTPS and cap the chain length to prevent
+		// redirect loops / SSRF via redirect-to-internal-host.
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if req.URL.Scheme != "https" {
+				return http.ErrUseLastResponse
+			}
+			if len(via) >= 10 {
+				return http.ErrUseLastResponse
+			}
+			return nil
+		},
+	}
+	resp, err := client.Get(u.String())
 	if err != nil {
 		JSONResponse(w, models.Response{Success: false, Message: err.Error()}, http.StatusBadRequest)
 		return
 	}
+	defer resp.Body.Close()
+
+	// Cap the response body to avoid memory exhaustion on large pages.
+	body := io.LimitReader(resp.Body, 5*1024*1024)
+
 	// Insert the base href tag to better handle relative resources
-	d, err := goquery.NewDocumentFromResponse(resp)
+	d, err := goquery.NewDocumentFromReader(body, nil)
 	if err != nil {
 		JSONResponse(w, models.Response{Success: false, Message: err.Error()}, http.StatusBadRequest)
 		return

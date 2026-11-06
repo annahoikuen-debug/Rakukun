@@ -4,7 +4,7 @@ import { requireOrg } from "@/lib/org";
 import { orgClient } from "@/lib/gophish";
 import { aggregateReport } from "@/lib/report-aggregator";
 import { renderReportPdf } from "@/lib/report-pdf";
-import { toOrgErrorStatus } from "@/lib/errors";
+import { toClientMessage, toOrgErrorStatus } from "@/lib/errors";
 import { NextResponse } from "next/server";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -21,7 +21,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const r = await requireOrg(userId);
     org = r.org;
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: toOrgErrorStatus(e) });
+    return NextResponse.json({ error: toClientMessage(e) }, { status: toOrgErrorStatus(e) });
   }
 
   const tc = await prisma.trainingCampaign.findFirst({

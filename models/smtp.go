@@ -11,13 +11,16 @@ import (
 	"time"
 
 	"github.com/gophish/gomail"
-	"github.com/gophish/gophish/config"
 	"github.com/gophish/gophish/dialer"
 	log "github.com/gophish/gophish/logger"
 	"github.com/gophish/gophish/mailer"
 	"github.com/gophish/gophish/util"
 	"github.com/jinzhu/gorm"
 )
+
+// encryptionKeyEnv is the environment variable that must provide the SMTP
+// encryption key when config.json's encryption_key is empty.
+const encryptionKeyEnv = "ENCRYPTION_KEY"
 
 // Dialer is a wrapper around a standard gomail.Dialer in order
 // to implement the mailer.Dialer interface. This allows us to better
@@ -76,15 +79,17 @@ func (s SMTP) TableName() string {
 	return "smtp"
 }
 
-// getEncryptionKey returns the encryption key from config or generates a fallback
-func getEncryptionKey() []byte {
-	key := config.Conf.EncryptionKey
+// getEncryptionKey returns the encryption key from config or ENCRYPTION_KEY env.
+// It must be set; no fallback.
+func getEncryptionKey() ([]byte, error) {
+	key := conf.EncryptionKey
 	if len(key) == 0 {
-		// Generate a deterministic key from a default (for backward compatibility)
-		// In production, always set encryption_key in config.json
-		return []byte("gophish-default-encryption-key-32b")
+		key = os.Getenv(encryptionKeyEnv)
 	}
-	return []byte(key)
+	if len(key) == 0 {
+		return nil, errors.New("encryption_key must be set in config.json or via " + encryptionKeyEnv + " env")
+	}
+	return []byte(key), nil
 }
 
 // EncryptPassword encrypts the password before storage
@@ -92,7 +97,10 @@ func (s *SMTP) EncryptPassword() error {
 	if s.Password == "" {
 		return nil
 	}
-	key := getEncryptionKey()
+	key, err := getEncryptionKey()
+	if err != nil {
+		return err
+	}
 	encrypted, err := util.Encrypt(key, s.Password)
 	if err != nil {
 		return err
@@ -106,11 +114,13 @@ func (s *SMTP) DecryptPassword() error {
 	if s.Password == "" {
 		return nil
 	}
-	key := getEncryptionKey()
+	key, err := getEncryptionKey()
+	if err != nil {
+		return err
+	}
 	decrypted, err := util.Decrypt(key, s.Password)
 	if err != nil {
-		// If decryption fails, assume it's plaintext (backward compatibility)
-		return nil
+		return err
 	}
 	s.Password = decrypted
 	return nil

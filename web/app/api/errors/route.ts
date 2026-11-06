@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { logger } from "@/lib/logger";
 import { logError } from "@/lib/errors";
+import { rateLimit } from "@/lib/rate-limit";
+import { clientIp } from "@/lib/client-ip";
 
 /**
  * Client-side error reporting endpoint.
@@ -20,6 +22,12 @@ import { logError } from "@/lib/errors";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  // Rate-limit client error reporting to prevent log flooding.
+  const ip = clientIp(req.headers);
+  if (!(await rateLimit(`client-errors:${ip}`, 30, 60_000))) {
+    return NextResponse.json({ error: "rate limited" }, { status: 429, headers: { "Retry-After": "60" } });
+  }
+
   let body: Record<string, unknown> = {};
   try {
     body = (await req.json()) ?? {};

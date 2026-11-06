@@ -9,6 +9,14 @@
 // when reading X-Forwarded-For, so deployments behind multiple proxies can
 // tune it. A value of 0 means "use the last hop".
 export function clientIp(headers: Headers): string {
+  const count = Math.max(0, Number(process.env.TRUSTED_PROXY_COUNT ?? "0"));
+
+  // With no trusted proxy in front of the app (the documented deployment),
+  // X-Real-IP and X-Forwarded-For are fully client-controlled and must not
+  // be used for rate limiting. Return "unknown" so callers cannot be spoofed
+  // by rotating those headers.
+  if (count === 0) return "unknown";
+
   const realIp = headers.get("x-real-ip")?.trim();
   if (realIp) return realIp;
 
@@ -16,8 +24,8 @@ export function clientIp(headers: Headers): string {
   if (xff) {
     const hops = xff.split(",").map((h) => h.trim()).filter(Boolean);
     if (hops.length > 0) {
-      const count = Math.max(0, Number(process.env.TRUSTED_PROXY_COUNT ?? "0"));
-      const index = Math.max(0, hops.length - 1 - count);
+      // Trust the last `count` hops (each trusted proxy appends to the right).
+      const index = Math.max(0, hops.length - count);
       return hops[index] ?? hops[hops.length - 1] ?? "unknown";
     }
   }

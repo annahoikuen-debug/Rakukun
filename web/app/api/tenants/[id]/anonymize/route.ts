@@ -23,20 +23,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // Anonymize target employee PII for this tenant.
+  // Anonymize target employee PII for this tenant, atomically.
   const employees = await prisma.targetEmployee.findMany({ where: { tenantId: org.id } });
-  let count = 0;
-  for (const e of employees) {
-    await prisma.targetEmployee.update({
-      where: { id: e.id },
-      data: {
-        name: "匿名",
-        email: `anon-${e.id}@deleted.local`,
-        department: "匿名",
-      },
-    });
-    count++;
-  }
+  await prisma.$transaction(
+    employees.map((e) =>
+      prisma.targetEmployee.update({
+        where: { id: e.id },
+        data: {
+          name: "匿名",
+          email: `anon-${e.id}@deleted.local`,
+          department: "匿名",
+        },
+      })
+    )
+  );
+  const count = employees.length;
 
   await auditLog({
     userId,

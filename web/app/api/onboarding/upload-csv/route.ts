@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireOrg } from "@/lib/org";
 import { orgClient } from "@/lib/gophish";
 import { assertEmailMatchesTenant, planLimit } from "@/lib/domain-guard";
-import { toOrgErrorStatus } from "@/lib/errors";
+import { toClientMessage, toOrgErrorStatus } from "@/lib/errors";
 import { rateLimit } from "@/lib/rate-limit";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -60,13 +60,19 @@ export async function POST(req: Request) {
   const userId = session.userId as string;
   const orgId = await (await import("@/lib/org")).getActiveOrgId(userId);
   if (!orgId) return NextResponse.json({ error: "No tenant" }, { status: 400 });
-  let org, client;
+  let org, client, membership;
   try {
     const r = await requireOrg(userId, orgId);
     org = r.org;
     client = await orgClient(r.org.id);
+    membership = r.membership;
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: toOrgErrorStatus(e) });
+    return NextResponse.json({ error: toClientMessage(e) }, { status: toOrgErrorStatus(e) });
+  }
+
+  // Only OWNER/ADMIN may bulk-import employees (PII + Gophish group mutation).
+  if (membership.role !== "OWNER" && membership.role !== "ADMIN") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const form = await req.formData();

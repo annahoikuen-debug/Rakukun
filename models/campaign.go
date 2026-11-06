@@ -29,7 +29,7 @@ type Campaign struct {
 	Groups        []Group   `json:"groups,omitempty"`
 	Events        []Event   `json:"timeline,omitempty"`
 	SMTPId        int64     `json:"-"`
-	SMTP          SMTP      `json:"smtp"`
+	SMTP          SMTP      `json:"smtp" gorm:"association_autoupdate:false"`
 	URL           string    `json:"url"`
 }
 

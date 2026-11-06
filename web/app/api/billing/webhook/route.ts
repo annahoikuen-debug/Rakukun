@@ -11,14 +11,14 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   const body = await req.text();
   const signature = (await headers()).get("stripe-signature") ?? "";
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!webhookSecret || !stripe) {
+    return NextResponse.json({ error: "Webhook secret not configured" }, { status: 500 });
+  }
 
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(
-      body,
-      signature,
-      process.env.STRIPE_WEBHOOK_SECRET ?? "",
-    );
+    event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
   } catch (err) {
     logError(err, { source: "stripe-webhook" });
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });

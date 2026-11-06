@@ -3,12 +3,18 @@ import { prisma } from "@/lib/prisma";
 import { requireOrg } from "@/lib/org";
 import { toOrgErrorStatus, toClientMessage } from "@/lib/errors";
 import { decryptSecret, verifyTotp, generateRecoveryCodes } from "@/lib/mfa";
+import { rateLimit } from "@/lib/rate-limit";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const userId = session.userId as string;
+
+  // Throttle MFA verification to prevent TOTP brute force / re-enrollment takeover.
+  if (!(await rateLimit(`mfa-verify:${userId}`, 5, 60_000))) {
+    return NextResponse.json({ error: "rate limited" }, { status: 429, headers: { "Retry-After": "60" } });
+  }
 
   try {
     await requireOrg(userId);

@@ -44,7 +44,6 @@ export async function GET() {
     const gophishUrl = process.env.GOPHISH_ADMIN_URL ?? "http://localhost:3333";
     const res = await fetch(`${gophishUrl}/api/`, {
       method: "GET",
-      headers: { Authorization: `Bearer ${process.env.GOPHISH_ADMIN_API_KEY ?? ""}` },
       signal: AbortSignal.timeout(3000),
     });
     gophish = res.ok || res.status === 401; // reachable even if auth required
@@ -52,7 +51,10 @@ export async function GET() {
     gophish = false;
   }
 
-  const allOk = db && redis;
+  // Redis is optional: when configured its status is reported but does not
+  // flip the overall health to degraded (an HTTP HEAD against a Redis RESP
+  // port always fails). Only the database is required for the app to work.
+  const allOk = db;
   const status = allOk ? "ok" : "degraded";
 
   return NextResponse.json(

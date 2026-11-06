@@ -72,8 +72,14 @@ export function totpAt(secret: string, time: number, digits = 6, step = 30): str
 export function verifyTotp(secret: string, token: string, window = 1): boolean {
   const t = Math.floor(Date.now() / 1000);
   const cleaned = token.replace(/\s/g, "");
+  const cleanedBuf = Buffer.from(cleaned, "utf8");
   for (let i = -window; i <= window; i++) {
-    if (totpAt(secret, (t + i * 30) * 1000, 6, 30) === cleaned) return true;
+    const expected = totpAt(secret, (t + i * 30) * 1000, 6, 30);
+    const expectedBuf = Buffer.from(expected, "utf8");
+    // timingSafeEqual requires equal-length buffers; a wrong-length token can
+    // never match, so skip instead of throwing a RangeError (500).
+    if (expectedBuf.length !== cleanedBuf.length) continue;
+    if (crypto.timingSafeEqual(expectedBuf, cleanedBuf)) return true;
   }
   return false;
 }

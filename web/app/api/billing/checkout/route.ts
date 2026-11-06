@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { requireOrg } from "@/lib/org";
-import { toOrgErrorStatus } from "@/lib/errors";
+import { toClientMessage, toOrgErrorStatus } from "@/lib/errors";
 import { stripe, STRIPE_PLANS, planToStripePrice } from "@/lib/stripe";
 
 export async function POST(req: Request) {
@@ -17,7 +17,7 @@ export async function POST(req: Request) {
     const r = await requireOrg(userId, orgId);
     org = r.org;
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: toOrgErrorStatus(e) });
+    return NextResponse.json({ error: toClientMessage(e) }, { status: toOrgErrorStatus(e) });
   }
 
   if (!process.env.STRIPE_SECRET_KEY) {
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => ({}));
   const { plan } = body ?? {};
-  if (!plan || !(plan in STRIPE_PLANS)) {
+  if (!plan || !Object.hasOwn(STRIPE_PLANS, plan)) {
     return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
   }
 

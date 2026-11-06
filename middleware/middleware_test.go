@@ -196,7 +196,7 @@ func TestPasswordResetRequired(t *testing.T) {
 
 func TestApplySecurityHeaders(t *testing.T) {
 	expected := map[string]string{
-		"Content-Security-Policy": "frame-ancestors 'none';",
+		"Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self';",
 		"X-Frame-Options":         "DENY",
 	}
 	req := httptest.NewRequest(http.MethodGet, "/", nil)

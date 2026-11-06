@@ -16,7 +16,21 @@ async function ctx() {
   const userId = session.userId as string;
   const orgId = await (await import("@/lib/org")).getActiveOrgId(userId);
   if (!orgId) throw new OrgAccessError("No org", 400);
-  const { org } = await requireOrg(userId, orgId);
+  const { org, membership } = await requireOrg(userId, orgId);
+
+  // Privileged server actions require MFA enrollment for OWNER/ADMIN. This is
+  // enforced server-side here (the dashboard layout redirect alone is not enough).
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { mfaEnabled: true },
+  });
+  if (
+    (membership.role === "OWNER" || membership.role === "ADMIN") &&
+    !user?.mfaEnabled
+  ) {
+    throw new OrgAccessError("MFA enrollment required", 403);
+  }
+
   const client = await orgClient(org.id);
   return { userId, org, client };
 }

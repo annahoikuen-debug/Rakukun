@@ -14,7 +14,21 @@ import { verify } from "crypto";
 // Skip only when env SES_SKIP_SIGNATURE_VERIFY=true (dev convenience, default false).
 
 async function fetchSubscribeURL(subscribeURL: string): Promise<void> {
-  const res = await fetch(subscribeURL, { method: "GET" });
+  let url: URL;
+  try {
+    url = new URL(subscribeURL);
+  } catch {
+    throw new Error("invalid SubscribeURL");
+  }
+  if (url.protocol !== "https:") throw new Error("SubscribeURL must be https");
+  // Only allow SNS endpoints in known AWS regions, not arbitrary hosts.
+  if (!/^sns\.[a-z0-9-]+\.amazonaws\.com$/.test(url.hostname)) {
+    throw new Error("SubscribeURL host not allowed");
+  }
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    signal: AbortSignal.timeout(5000),
+  });
   if (!res.ok) {
     throw new Error(`SubscribeURL confirmation failed: ${res.status}`);
   }
@@ -60,7 +74,8 @@ async function verifySnsSignature(message: Record<string, unknown>): Promise<boo
     return false;
   }
   if (certUrl.protocol !== "https:") return false;
-  if (!certUrl.hostname.endsWith(".amazonaws.com")) return false;
+  // Only allow SNS certificate endpoints in known AWS regions, not arbitrary *.amazonaws.com hosts.
+  if (!/^sns\.[a-z0-9-]+\.amazonaws\.com$/.test(certUrl.hostname)) return false;
 
   const certPem = await fetch(certUrl.toString())
     .then((r) => (r.ok ? r.text() : ""))
@@ -85,7 +100,11 @@ export async function POST(req: Request) {
   // SNS subscription confirmation
   if (body.Type === "SubscriptionConfirmation") {
     if (!skipVerify) {
-      // Optionally fetch the SubscribeURL to confirm the subscription.
+      // Verify the SNS signature *before* fetching SubscribeURL to prevent SSRF.
+      const verified = await verifySnsSignature(body as Record<string, unknown>);
+      if (!verified) {
+        return NextResponse.json({ error: "unverified SNS message" }, { status: 401 });
+      }
       try {
         await fetchSubscribeURL(String(body.SubscribeURL ?? ""));
       } catch {

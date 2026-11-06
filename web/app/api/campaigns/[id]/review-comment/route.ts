@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { requireOrg } from "@/lib/org";
-import { toOrgErrorStatus } from "@/lib/errors";
+import { toClientMessage, toOrgErrorStatus } from "@/lib/errors";
 import { auditLog } from "@/lib/audit";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -22,7 +22,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const r = await requireOrg(userId);
     org = r.org;
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: toOrgErrorStatus(e) });
+    return NextResponse.json({ error: toClientMessage(e) }, { status: toOrgErrorStatus(e) });
   }
 
   const parsed = bodySchema.safeParse(await req.json().catch(() => ({})));

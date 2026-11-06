@@ -21,14 +21,20 @@ export async function POST(req: Request) {
   const userId = session.userId as string;
   const orgId = await (await import("@/lib/org")).getActiveOrgId(userId);
   if (!orgId) return NextResponse.json({ error: "No tenant" }, { status: 400 });
-  let org, client;
+  let org, client, membership;
   try {
     const r = await requireOrg(userId, orgId);
     org = r.org;
     client = await orgClient(r.org.id);
+    membership = r.membership;
   } catch (e) {
     return NextResponse.json({ error: toClientMessage(e) }, { status: toOrgErrorStatus(e) });
   }
+  // Only OWNER/ADMIN may launch campaigns to the whole org.
+  if (membership.role !== "OWNER" && membership.role !== "ADMIN") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   // Tenant-level guard against mass campaign launches.
   if (!(await rateLimit(`launch-tenant:${org.id}`, 10, 3600_000))) {
     return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429, headers: { "Retry-After": "3600" } });

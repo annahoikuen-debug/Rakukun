@@ -17,8 +17,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "rate limited" }, { status: 429, headers: { "Retry-After": "60" } });
   }
 
+  // Look up by the unguessable publicToken only. gophishResultId is a global
+  // sequential ID: accepting it here would let an attacker mark another
+  // tenant's employees as clicked/completed (H12).
   const result = await prisma.trainingResult.findFirst({
-    where: { OR: [{ gophishResultId: rid }, { publicToken: rid }] },
+    where: { publicToken: rid },
   });
   if (!result) return NextResponse.json({ ok: false, reason: "not found" }, { status: 404 });
 

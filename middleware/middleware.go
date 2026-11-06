@@ -103,6 +103,14 @@ func RequireAPIKey(handler http.Handler) http.Handler {
 			JSONError(w, http.StatusUnauthorized, "Invalid API Key")
 			return
 		}
+		// API key authentication must respect the same account state as the
+		// interactive login path: a locked-out or forced-reset account cannot
+		// act through the API either (otherwise the lockout/reset is bypassable
+		// by PUTting /api/users/{self}).
+		if u.AccountLocked || u.PasswordChangeRequired {
+			JSONError(w, http.StatusForbidden, "Account locked or password change required")
+			return
+		}
 		r = ctx.Set(r, "user", u)
 		r = ctx.Set(r, "user_id", u.Id)
 		r = ctx.Set(r, "api_key", ak)
@@ -181,7 +189,12 @@ func RequirePermission(perm string) func(http.Handler) http.HandlerFunc {
 // practices.
 func ApplySecurityHeaders(next http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		csp := "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self';"
+		// NOTE: script-src 'self' blocks the inline <script> in templates/base.html
+		// (var user = { api_key: … }), which breaks every authenticated admin API
+		// call from the UI (ReferenceError on user.api_key). 'unsafe-inline' is a
+		// stopgap so the admin UI keeps working; the inline block should be moved
+		// to an external file and this relaxed directive removed in a follow-up.
+		csp := "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self';"
 		w.Header().Set("Content-Security-Policy", csp)
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
