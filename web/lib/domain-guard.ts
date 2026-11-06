@@ -26,31 +26,12 @@ export function getDefaultDomainGuardConfig(): DomainGuardConfig {
   };
 }
 
-// Load tenant-scoped overrides from the database when an org context is
-// available. Falls back to the defaults above otherwise. Returns a fresh
-// config object per call so callers cannot mutate shared state.
-export async function loadDomainGuardConfig(tenantId?: string): Promise<DomainGuardConfig> {
-  const config = getDefaultDomainGuardConfig();
-  if (!tenantId) return config;
-  try {
-    const { prisma } = await import("@/lib/prisma");
-    const [freemailRows, planRows] = await Promise.all([
-      prisma.tenantDomainConfig.findMany({ where: { tenantId, type: "FREEMAIL" } }),
-      prisma.tenantPlanLimit.findMany({ where: { tenantId } }),
-    ]);
-    if (freemailRows.length) {
-      config.freemail = new Set(freemailRows.map((r) => String(r.value)));
-    }
-    if (planRows.length) {
-      config.planLimits = {
-        ...DEFAULT_PLAN_LIMITS,
-        ...Object.fromEntries(planRows.map((r) => [String(r.plan), Number(r.limit)])),
-      };
-    }
-  } catch {
-    // Keep defaults if config tables are not yet migrated or query fails.
-  }
-  return config;
+// Tenant-scoped overrides are intentionally not persisted to the database.
+// Row-Level Security was dropped in favor of app-layer tenantId filtering
+// (see web/lib/org.ts requireOrg), so domain-guard uses the hardcoded defaults
+// below. Keep this function signature for future per-tenant config loading.
+export async function loadDomainGuardConfig(_tenantId?: string): Promise<DomainGuardConfig> {
+  return getDefaultDomainGuardConfig();
 }
 
 export function emailDomain(email: string): string {
