@@ -8,6 +8,7 @@ const REDIS_MODULE = "@upstash/redis";
 
 type RedisStore = {
   get: (key: string) => Promise<string | null>;
+  incr: (key: string) => Promise<number>;
   set: (key: string, value: string, ttlSeconds: number) => Promise<void>;
   del: (key: string) => Promise<void>;
 };
@@ -23,6 +24,7 @@ async function loadRedis(): Promise<RedisStore | null> {
     const mod = (await import(/* webpackIgnore: true */ REDIS_MODULE)) as {
       Redis: new (opts: { url: string; token?: string }) => {
         get: (key: string) => Promise<string | null>;
+        incr: (key: string) => Promise<number>;
         set: (key: string, value: string, opts?: { ex?: number }) => Promise<unknown>;
         del: (key: string) => Promise<unknown>;
       };
@@ -31,6 +33,7 @@ async function loadRedis(): Promise<RedisStore | null> {
     // Wrap so the rest of the module keeps a uniform (ttlSeconds) signature.
     redisStore = {
       get: (key) => client.get(key),
+      incr: (key) => client.incr(key).then((n: number) => n),
       set: (key, value, ttlSeconds) => client.set(key, value, { ex: ttlSeconds }).then(() => undefined),
       del: (key) => client.del(key).then(() => undefined),
     };
@@ -70,10 +73,12 @@ export async function rateLimit(key: string, limit = 5, windowMs = 60_000): Prom
   const store = await loadRedis();
   if (store) {
     const windowKey = `ratelimit:${key}`;
-    const current = await store.get(windowKey);
-    const count = current ? parseInt(current, 10) : 0;
-    if (count >= limit) return false; // blocked
-    await store.set(windowKey, String(count + 1), Math.ceil(windowMs / 1000));
+    // Atomic: INCR returns the new count; expire on first hit.
+    const count = await store.incr(windowKey);
+    if (count === 1) {
+      await store.set(windowKey, String(count), Math.ceil(windowMs / 1000));
+    }
+    if (count > limit) return false; // blocked
     return true; // allowed
   }
   return memoryAllowed(key, limit, windowMs);
